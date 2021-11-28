@@ -20,7 +20,8 @@ fn main() {
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(DRAW_TIME_STEP as f64))
                 .with_system(list_objects.system().label("list"))
-                .with_system(add_trace_point.system().after("list")),
+                .with_system(add_trace_point.system().label("add_trace_point").after("list"))
+                .with_system(update_trace_point.system().after("add_trace_point")),
         )
         .run();
 }
@@ -51,8 +52,15 @@ const SCALE: f32 = 500.0 / 160e9;
 #[derive(Clone)]
 struct Name(String);
 
-fn list_objects(mut query: Query<(&Name, &Position, &Velocity, &mut TracePoint), With<Mass>>) {
-    for (name, position, velocity, mut trace_point) in query.iter_mut() {
+fn update_trace_point(mut query: Query<(&mut TracePoint, &Position)>) {
+    for (mut trace_point, position) in query.iter_mut() {
+        trace_point.position = position.0;
+        trace_point.drawn = false;
+    }
+}
+
+fn list_objects(query: Query<(&Name, &Position, &Velocity), With<Mass>>) {
+    for (name, position, velocity) in query.iter() {
         println!(
             "{} ({}) [{:4.2e}] => ({})",
             name.0,
@@ -60,9 +68,6 @@ fn list_objects(mut query: Query<(&Name, &Position, &Velocity, &mut TracePoint),
             position.0.length(),
             velocity.0.length()
         );
-
-        trace_point.position = position.0;
-        trace_point.drawn = false;
     }
     println!("======");
 }
