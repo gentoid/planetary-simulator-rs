@@ -1,23 +1,29 @@
 use std::ops::{AddAssign, Mul};
 
-use bevy::prelude::*;
+use bevy::{core::FixedTimestep, prelude::*};
 use bevy_prototype_lyon::prelude::*;
+
+const CALCULATE_TIME_STEP: f32 = 0.05;
+const DRAW_TIME_STEP: f32 = CALCULATE_TIME_STEP * 24.0;
 
 fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
         .add_plugin(ShapePlugin)
-        .insert_resource(ListTimer(Timer::from_seconds(0.24, true)))
-        .insert_resource(StateTimer(Timer::from_seconds(0.01, true)))
         .add_startup_system(setup.system())
-        .add_system(calculate_new_state.system())
-        .add_system(list_objects.system())
+        .add_system(
+            calculate_new_state
+                .system()
+                .with_run_criteria(FixedTimestep::step(CALCULATE_TIME_STEP as f64)),
+        )
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(DRAW_TIME_STEP as f64))
+                .with_system(list_objects.system().label("list"))
+                .with_system(add_trace_point.system().after("list")),
+        )
         .run();
 }
-
-struct ListTimer(Timer);
-
-struct StateTimer(Timer);
 
 #[derive(Clone)]
 struct Position(Vec2);
@@ -32,6 +38,11 @@ struct Planet;
 #[derive(Clone)]
 struct Mass(f32);
 
+struct TracePoint {
+    position: Vec2,
+    drawn: bool,
+}
+
 const G: f32 = 6.67e-11;
 const TIME_INTERVAL: f32 = 3600.0;
 const ZERO_ANGLE: Vec2 = Vec2::X;
@@ -40,16 +51,8 @@ const SCALE: f32 = 500.0 / 160e9;
 #[derive(Clone)]
 struct Name(String);
 
-fn list_objects(
-    time: Res<Time>,
-    mut timer: ResMut<ListTimer>,
-    query: Query<(&Name, &Position, &Velocity), With<Mass>>,
-) {
-    if !timer.0.tick(time.delta()).just_finished() {
-        return;
-    }
-
-    for (name, position, velocity) in query.iter() {
+fn list_objects(mut query: Query<(&Name, &Position, &Velocity, &mut TracePoint), With<Mass>>) {
+    for (name, position, velocity, mut trace_point) in query.iter_mut() {
         println!(
             "{} ({}) [{:4.2e}] => ({})",
             name.0,
@@ -57,13 +60,14 @@ fn list_objects(
             position.0.length(),
             velocity.0.length()
         );
+
+        trace_point.position = position.0;
+        trace_point.drawn = false;
     }
     println!("======");
 }
 
 fn calculate_new_state(
-    time: Res<Time>,
-    mut timer: ResMut<StateTimer>,
     mut query: Query<
         (
             Entity,
@@ -76,10 +80,6 @@ fn calculate_new_state(
         With<Mass>,
     >,
 ) {
-    if !timer.0.tick(time.delta()).just_finished() {
-        return;
-    }
-
     let mut prev_state = vec![];
 
     for (entity, name, position, _, mass, _) in query.iter_mut() {
@@ -144,19 +144,43 @@ fn setup(mut commands: Commands) {
         Mass(3.285e23),
     );
 
-    commands = add_planet(commands,
+    commands = add_planet(
+        commands,
         Name("Venus".to_string()),
         Position(Vec2::new(-108e9, 0.0)),
         Velocity(Vec2::new(0.0, -35.0e3)),
         Mass(4.867e24),
     );
 
-    add_planet(commands,
+    add_planet(
+        commands,
         Name("Earth".to_string()),
         Position(Vec2::new(0.0, 152.098232e9)),
         Velocity(Vec2::new(-29.4e3, 0.0)),
         Mass(4.867e24),
     );
+}
+
+fn add_trace_point(mut commands: Commands, mut query: Query<&mut TracePoint>) {
+    let trace_point_shape = shapes::Circle {
+        radius: 1.0,
+        center: Vec2::new(0.0, 0.0),
+    };
+    for mut trace in query.iter_mut() {
+        if trace.drawn {
+            continue;
+        }
+
+        let scaled = trace.position.mul(SCALE);
+        commands.spawn_bundle(GeometryBuilder::build_as(
+            &trace_point_shape,
+            ShapeColors::new(Color::DARK_GREEN),
+            DrawMode::Fill(FillOptions::default()),
+            Transform::from_xyz(scaled.x, scaled.y, 0.0),
+        ));
+
+        trace.drawn = true;
+    }
 }
 
 fn add_planet(
@@ -181,9 +205,13 @@ fn add_planet(
         ))
         .insert(Planet)
         .insert(name)
-        .insert(position)
+        .insert(position.clone())
         .insert(velocity)
-        .insert(mass);
+        .insert(mass)
+        .insert(TracePoint {
+            position: position.0,
+            drawn: false,
+        });
 
     commands
 }
