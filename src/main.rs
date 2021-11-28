@@ -162,7 +162,7 @@ fn setup(mut commands: Commands) {
         Name("Earth".to_string()),
         Position(Vec2::new(0.0, 152.098232e9)),
         Velocity(Vec2::new(-29.4e3, 0.0)),
-        Mass(4.867e24),
+        Mass(5.9722e24),
     );
 
     add_planet(
