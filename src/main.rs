@@ -5,25 +5,17 @@ use bevy::prelude::*;
 fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
-        .add_plugin(CliListPlugin)
+        .insert_resource(ListTimer(Timer::from_seconds(0.24, true)))
+        .insert_resource(StateTimer(Timer::from_seconds(0.01, true)))
+        .add_startup_system(add_objects.system())
+        .add_system(calculate_new_state.system())
+        .add_system(list_objects.system())
         .run();
 }
 
 struct ListTimer(Timer);
 
 struct StateTimer(Timer);
-
-pub struct CliListPlugin;
-
-impl Plugin for CliListPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.insert_resource(ListTimer(Timer::from_seconds(0.24, true)))
-            .insert_resource(StateTimer(Timer::from_seconds(0.01, true)))
-            .add_startup_system(add_objects.system())
-            .add_system(calculate_new_state.system())
-            .add_system(list_objects.system());
-    }
-}
 
 #[derive(Clone)]
 struct Position(Vec2);
@@ -57,7 +49,10 @@ fn list_objects(
     for (name, position, velocity) in query.iter() {
         println!(
             "{} ({}) [{:4.2e}] => ({})",
-            name.0, position.0, position.0.length(), velocity.0.length()
+            name.0,
+            position.0,
+            position.0.length(),
+            velocity.0.length()
         );
     }
     println!("======");
