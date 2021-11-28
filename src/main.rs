@@ -64,7 +64,17 @@ fn list_objects(
 fn calculate_new_state(
     time: Res<Time>,
     mut timer: ResMut<StateTimer>,
-    mut query: Query<(Entity, &Name, &mut Position, &mut Velocity, &Mass, &mut Transform), With<Mass>>,
+    mut query: Query<
+        (
+            Entity,
+            &Name,
+            &mut Position,
+            &mut Velocity,
+            &Mass,
+            &mut Transform,
+        ),
+        With<Mass>,
+    >,
 ) {
     if !timer.0.tick(time.delta()).just_finished() {
         return;
@@ -126,44 +136,47 @@ fn setup(mut commands: Commands) {
         .insert(Velocity(Vec2::new(0.0, 0.0)))
         .insert(Mass(1.989e30));
 
-    let init_mercury_pos = Vec2::new(69.817445e9, 0.0);
+    commands = add_planet(
+        commands,
+        Name("Mercury".to_string()),
+        Position(Vec2::new(69.817445e9, 0.0)),
+        Velocity(Vec2::new(0.0, 38.7e3)),
+        Mass(3.285e23),
+    );
 
-    let mercury_circle = shapes::Circle {
+    add_planet(commands,
+        Name("Venus".to_string()),
+        Position(Vec2::new(-108e9, 0.0)),
+        Velocity(Vec2::new(0.0, -35.0e3)),
+        Mass(4.867e24),
+    );
+}
+
+fn add_planet(
+    mut commands: Commands,
+    name: Name,
+    position: Position,
+    velocity: Velocity,
+    mass: Mass,
+) -> Commands {
+    let shape = shapes::Circle {
         radius: 2.0,
         center: Vec2::new(0.0, 0.0),
     };
-    let scaled_mercury_pos = init_mercury_pos.mul(SCALE);
+    let scaled_position = position.0.mul(SCALE);
 
     commands
         .spawn_bundle(GeometryBuilder::build_as(
-            &mercury_circle,
+            &shape,
             ShapeColors::new(Color::BLACK),
             DrawMode::Fill(FillOptions::default()),
-            Transform::from_xyz(scaled_mercury_pos.x, scaled_mercury_pos.y, 0.0),
+            Transform::from_xyz(scaled_position.x, scaled_position.y, 0.0),
         ))
         .insert(Planet)
-        .insert(Name("Mercury".to_string()))
-        .insert(Position(init_mercury_pos))
-        .insert(Velocity(Vec2::new(0.0, 38.7e3)))
-        .insert(Mass(3.285e23));
+        .insert(name)
+        .insert(position)
+        .insert(velocity)
+        .insert(mass);
 
-    let init_venus_pos = Vec2::new(-108e9, 0.0);
-
-    let venus_circle = shapes::Circle {
-        radius: 2.0,
-        center: Vec2::new(0.0, 0.0),
-    };
-    let scaled_venus_pos = init_venus_pos.mul(SCALE);
     commands
-        .spawn_bundle(GeometryBuilder::build_as(
-            &venus_circle,
-            ShapeColors::new(Color::BLACK),
-            DrawMode::Fill(FillOptions::default()),
-            Transform::from_xyz(scaled_venus_pos.x, scaled_venus_pos.y, 0.0),
-        ))
-        .insert(Planet)
-        .insert(Name("Venus".to_string()))
-        .insert(Position(init_venus_pos))
-        .insert(Velocity(Vec2::new(0.0, -35.0e3)))
-        .insert(Mass(4.867e24));
 }
