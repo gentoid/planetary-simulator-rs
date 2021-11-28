@@ -47,7 +47,7 @@ struct TracePoint {
 const G: f32 = 6.67e-11;
 const TIME_INTERVAL: f32 = 3600.0;
 const ZERO_ANGLE: Vec2 = Vec2::X;
-const SCALE: f32 = 500.0 / 160e9;
+const SCALE: f32 = 500.0 / 260e9;
 
 #[derive(Clone)]
 struct Name(String);
@@ -157,12 +157,20 @@ fn setup(mut commands: Commands) {
         Mass(4.867e24),
     );
 
-    add_planet(
+    commands = add_planet(
         commands,
         Name("Earth".to_string()),
         Position(Vec2::new(0.0, 152.098232e9)),
         Velocity(Vec2::new(-29.4e3, 0.0)),
         Mass(4.867e24),
+    );
+
+    add_planet(
+        commands,
+        Name("Mars".to_string()),
+        Position(Vec2::new(0.0, -249.232e9)),
+        Velocity(Vec2::new(22.0e3, 0.0)),
+        Mass(6.4171e23),
     );
 }
 
