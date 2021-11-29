@@ -97,8 +97,8 @@ fn calculate_new_state(
         prev_state.push((entity.id(), name.clone(), position.clone(), mass.clone()));
     }
 
-    for (entity, name, mut position, mut velocity, _, mut transform) in query.iter_mut() {
-        for (other_entity_id, other_name, other_position, other_mass) in &prev_state {
+    for (entity, _, mut position, mut velocity, _, mut transform) in query.iter_mut() {
+        for (other_entity_id, _, other_position, other_mass) in &prev_state {
             if &entity.id() == other_entity_id {
                 continue;
             }
