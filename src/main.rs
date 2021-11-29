@@ -1,6 +1,6 @@
-use std::ops::{AddAssign, Mul};
+use std::ops::{AddAssign, DivAssign, Mul, MulAssign};
 
-use bevy::{core::FixedTimestep, prelude::*};
+use bevy::{core::FixedTimestep, input::mouse::MouseWheel, prelude::*};
 use bevy_prototype_lyon::prelude::*;
 
 const CALCULATE_TIME_STEP: f32 = 0.05;
@@ -10,7 +10,9 @@ fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
         .add_plugin(ShapePlugin)
+        .init_resource::<ViewScale>()
         .add_startup_system(setup.system())
+        .add_system(zoom_view.system())
         .add_system(
             calculate_new_state
                 .system()
@@ -20,7 +22,12 @@ fn main() {
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(DRAW_TIME_STEP as f64))
                 .with_system(list_objects.system().label("list"))
-                .with_system(add_trace_point.system().label("add_trace_point").after("list"))
+                .with_system(
+                    add_trace_point
+                        .system()
+                        .label("add_trace_point")
+                        .after("list"),
+                )
                 .with_system(update_trace_point.system().after("add_trace_point")),
         )
         .run();
@@ -44,16 +51,28 @@ struct TracePoint {
     drawn: bool,
 }
 
+struct ViewScale(f32);
+
+impl Default for ViewScale {
+    fn default() -> Self {
+        Self(INIT_SCALE)
+    }
+}
+
 impl TracePoint {
     fn new(position: Position) -> Self {
-        Self { position, drawn: false }
+        Self {
+            position,
+            drawn: false,
+        }
     }
 }
 
 const G: f32 = 6.67e-11;
 const TIME_INTERVAL: f32 = 3600.0;
 const ZERO_ANGLE: Vec2 = Vec2::X;
-const SCALE: f32 = 500.0 / 260e9;
+const INIT_SCALE: f32 = 500.0 / 260e9;
+const SCALE_CHANGE_BY: f32 = 1.3;
 
 #[derive(Clone)]
 struct Name(String);
@@ -78,6 +97,17 @@ fn list_objects(query: Query<(&Name, &Position, &Velocity), With<Mass>>) {
     println!("======");
 }
 
+fn zoom_view(mut scroll_event: EventReader<MouseWheel>, mut view_scale: ResMut<ViewScale>) {
+    for event in scroll_event.iter() {
+        let change_by = SCALE_CHANGE_BY * event.y.abs();
+        if event.y.is_sign_negative() {
+            view_scale.0.mul_assign(change_by);
+        } else if event.y.is_sign_positive() {
+            view_scale.0.div_assign(change_by);
+        }
+    }
+}
+
 fn calculate_new_state(
     mut query: Query<
         (
@@ -90,6 +120,7 @@ fn calculate_new_state(
         ),
         With<Mass>,
     >,
+    view_scale: Res<ViewScale>,
 ) {
     let mut prev_state = vec![];
 
@@ -119,13 +150,13 @@ fn calculate_new_state(
             // );
         }
         position.0.add_assign(velocity.0 * TIME_INTERVAL);
-        transform.translation = (position.0.mul(SCALE), 0.0).into();
+        transform.translation = (position.0.mul(view_scale.0), 0.0).into();
         // println!("{} ({:?}) => [{:?}]", name.0, position.0, velocity.0);
     }
     // println!("------");
 }
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(UiCameraBundle::default());
 
@@ -156,6 +187,7 @@ fn setup(mut commands: Commands) {
         Position(Vec2::new(69.817445e9, 0.0)),
         Velocity(Vec2::new(0.0, 38.7e3)),
         Mass(3.285e23),
+        view_scale.0,
         false,
     );
 
@@ -165,6 +197,7 @@ fn setup(mut commands: Commands) {
         Position(Vec2::new(-108e9, 0.0)),
         Velocity(Vec2::new(0.0, -35.0e3)),
         Mass(4.867e24),
+        view_scale.0,
         false,
     );
 
@@ -174,6 +207,7 @@ fn setup(mut commands: Commands) {
         Position(Vec2::new(0.0, 152.098232e9)),
         Velocity(Vec2::new(-29.4e3, 0.0)),
         Mass(5.9722e24),
+        view_scale.0,
         false,
     );
 
@@ -183,11 +217,16 @@ fn setup(mut commands: Commands) {
         Position(Vec2::new(0.0, -249.232e9)),
         Velocity(Vec2::new(22.0e3, 0.0)),
         Mass(6.4171e23),
+        view_scale.0,
         false,
     );
 }
 
-fn add_trace_point(mut commands: Commands, mut query: Query<&mut TracePoint>) {
+fn add_trace_point(
+    mut commands: Commands,
+    view_scale: Res<ViewScale>,
+    mut query: Query<&mut TracePoint>,
+) {
     let trace_point_shape = shapes::Circle {
         radius: 1.0,
         center: Vec2::new(0.0, 0.0),
@@ -197,7 +236,7 @@ fn add_trace_point(mut commands: Commands, mut query: Query<&mut TracePoint>) {
             continue;
         }
 
-        let scaled = trace.position.0.mul(SCALE);
+        let scaled = trace.position.0.mul(view_scale.0);
         commands.spawn_bundle(GeometryBuilder::build_as(
             &trace_point_shape,
             ShapeColors::new(Color::DARK_GREEN),
@@ -209,19 +248,20 @@ fn add_trace_point(mut commands: Commands, mut query: Query<&mut TracePoint>) {
     }
 }
 
-fn add_planet(
-    mut commands: Commands,
+fn add_planet<'a>(
+    mut commands: Commands<'a>,
     name: Name,
     position: Position,
     velocity: Velocity,
     mass: Mass,
+    view_scale: f32,
     add_trace: bool,
-) -> Commands {
+) -> Commands<'a> {
     let shape = shapes::Circle {
         radius: 2.0,
         center: Vec2::new(0.0, 0.0),
     };
-    let scaled_position = position.0.mul(SCALE);
+    let scaled_position = position.0.mul(view_scale);
 
     let entity = commands
         .spawn_bundle(GeometryBuilder::build_as(
@@ -237,10 +277,9 @@ fn add_planet(
         .insert(mass)
         .id();
 
-        if add_trace {
-            commands.entity(entity)
-            .insert(TracePoint::new(position));
-        }
+    if add_trace {
+        commands.entity(entity).insert(TracePoint::new(position));
+    }
 
     commands
 }
