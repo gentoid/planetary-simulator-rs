@@ -12,7 +12,8 @@ fn main() {
         .add_plugin(ShapePlugin)
         .init_resource::<ViewScale>()
         .add_startup_system(setup.system())
-        .add_system(zoom_view.system())
+        .add_system(zoom_view.system().label("zoom view"))
+        .add_system(scale_object_sizes.system().after("zoom view"))
         .add_system(
             calculate_new_state
                 .system()
@@ -21,7 +22,6 @@ fn main() {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(DRAW_TIME_STEP as f64))
-                .with_system(on_zoom_change.system())
                 .with_system(list_objects.system().label("list"))
                 .with_system(
                     add_trace_point
@@ -114,7 +114,10 @@ fn zoom_view(mut scroll_event: EventReader<MouseWheel>, mut view_scale: ResMut<V
     }
 }
 
-fn on_zoom_change(view_scale: ResMut<ViewScale>, mut query: Query<(&Diameter, &mut Transform, &Name)>) {
+fn scale_object_sizes(
+    view_scale: ResMut<ViewScale>,
+    mut query: Query<(&Diameter, &mut Transform, &Name)>,
+) {
     if !view_scale.is_changed() {
         return;
     }
