@@ -15,6 +15,7 @@ fn main() {
         .add_system_to_stage(CoreStage::PreUpdate, set_init_sun_velocity.system())
         .add_system(zoom_view.system().label("zoom view"))
         .add_system(scale_object_sizes.system().after("zoom view"))
+        .add_system(update_scale_line.system().after("zoom view"))
         .add_system(
             calculate_new_state
                 .system()
@@ -33,6 +34,15 @@ fn main() {
                 .with_system(update_trace_point.system().after("add_trace_point")),
         )
         .run();
+}
+
+const MAX_SCALE_LINE_LENGTH: f32 = 200.0;
+
+#[derive(Debug)]
+struct ScaleRuler {
+    distance: f32,
+    unit: String,
+    length: f32,
 }
 
 #[derive(Clone)]
@@ -136,6 +146,36 @@ fn scale_object_sizes(
     }
 }
 
+fn update_scale_line(view_scale: Res<ViewScale>, mut query: Query<&mut ScaleRuler>) {
+    if !view_scale.is_changed() {
+        return;
+    }
+
+    for mut scale_ruler in query.iter_mut() {
+        let meters_per_ruler = MAX_SCALE_LINE_LENGTH / view_scale.0;
+        let log10_of_meter = meters_per_ruler.log10().floor();
+
+        let power_of_10 = 10.0_f32.powf(log10_of_meter);
+        let distance_meters = (meters_per_ruler / power_of_10).floor() * power_of_10;
+
+        let (unit, distance) = if log10_of_meter < 3.0 {
+            ("m", distance_meters)
+        } else if log10_of_meter < 6.0 {
+            ("km", distance_meters / 1.0e3)
+        } else if log10_of_meter < 9.0 {
+            ("tnd. km", distance_meters / 1.0e6)
+        } else if log10_of_meter < 12.0 {
+            ("mln. km", distance_meters / 1.0e9)
+        } else {
+            ("bln. km", distance_meters / 1.0e12)
+        };
+        scale_ruler.distance = distance;
+        scale_ruler.unit = unit.to_string();
+        scale_ruler.length = distance_meters * MAX_SCALE_LINE_LENGTH / meters_per_ruler;
+        println!("Scale line  : {:?}", scale_ruler);
+    }
+}
+
 fn set_init_sun_velocity(
     mut commands: Commands,
     mut query: QuerySet<(
@@ -216,6 +256,12 @@ fn calculate_new_state(
 fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(UiCameraBundle::default());
+
+    commands.spawn().insert(ScaleRuler {
+        distance: MAX_SCALE_LINE_LENGTH / view_scale.0,
+        unit: "m".to_string(),
+        length: MAX_SCALE_LINE_LENGTH,
+    });
 
     let sun_position = Position(Vec2::new(0.0, 0.0));
     let sun_diameter = 1.39268e9;
