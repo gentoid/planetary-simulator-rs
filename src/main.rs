@@ -21,6 +21,7 @@ fn main() {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(DRAW_TIME_STEP as f64))
+                .with_system(on_zoom_change.system())
                 .with_system(list_objects.system().label("list"))
                 .with_system(
                     add_trace_point
@@ -45,6 +46,8 @@ struct Planet;
 
 #[derive(Clone)]
 struct Mass(f32);
+
+struct Diameter(f32);
 
 struct TracePoint {
     position: Position,
@@ -73,6 +76,9 @@ const TIME_INTERVAL: f32 = 3600.0;
 const ZERO_ANGLE: Vec2 = Vec2::X;
 const INIT_SCALE: f32 = 500.0 / 260e9;
 const SCALE_CHANGE_BY: f32 = 1.3;
+
+const MIN_STAR_SIZE: f32 = 4.0;
+// const MIN_PLANET_SIZE: f32 = 2.0;
 
 #[derive(Clone)]
 struct Name(String);
@@ -105,6 +111,22 @@ fn zoom_view(mut scroll_event: EventReader<MouseWheel>, mut view_scale: ResMut<V
         } else if event.y.is_sign_positive() {
             view_scale.0.div_assign(change_by);
         }
+    }
+}
+
+fn on_zoom_change(view_scale: ResMut<ViewScale>, mut query: Query<(&Diameter, &mut Transform, &Name)>) {
+    if !view_scale.is_changed() {
+        return;
+    }
+
+    for (diameter, mut transform, name) in query.iter_mut() {
+        let calculated = diameter.0 * view_scale.0;
+
+        if calculated > MIN_STAR_SIZE {
+            let seen = calculated / MIN_STAR_SIZE;
+            transform.scale = Vec3::new(seen, seen, seen)
+        }
+        println!("{}: scale {}", name.0, transform.scale);
     }
 }
 
@@ -160,12 +182,13 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(UiCameraBundle::default());
 
+    let sun_position = Position(Vec2::new(0.0, 0.0));
+    let sun_diameter = 1.39268e9;
+
     let sun_circle = shapes::Circle {
-        radius: 4.0,
+        radius: f32::max(MIN_STAR_SIZE, sun_diameter * view_scale.0),
         center: Vec2::new(0.0, 0.0),
     };
-
-    let sun_position = Position(Vec2::new(0.0, 0.0));
 
     commands
         .spawn_bundle(GeometryBuilder::build_as(
@@ -179,6 +202,7 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
         .insert(sun_position.clone())
         .insert(Velocity(Vec2::new(0.0, 0.0)))
         .insert(Mass(1.989e30))
+        .insert(Diameter(sun_diameter))
         .insert(TracePoint::new(sun_position));
 
     commands = add_planet(
