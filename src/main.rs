@@ -40,8 +40,14 @@ struct Planet;
 struct Mass(f32);
 
 struct TracePoint {
-    position: Vec2,
+    position: Position,
     drawn: bool,
+}
+
+impl TracePoint {
+    fn new(position: Position) -> Self {
+        Self { position, drawn: false }
+    }
 }
 
 const G: f32 = 6.67e-11;
@@ -54,7 +60,7 @@ struct Name(String);
 
 fn update_trace_point(mut query: Query<(&mut TracePoint, &Position)>) {
     for (mut trace_point, position) in query.iter_mut() {
-        trace_point.position = position.0;
+        trace_point.position = position.clone();
         trace_point.drawn = false;
     }
 }
@@ -128,6 +134,8 @@ fn setup(mut commands: Commands) {
         center: Vec2::new(0.0, 0.0),
     };
 
+    let sun_position = Position(Vec2::new(0.0, 0.0));
+
     commands
         .spawn_bundle(GeometryBuilder::build_as(
             &sun_circle,
@@ -137,9 +145,10 @@ fn setup(mut commands: Commands) {
         ))
         .insert(Star)
         .insert(Name("Sun".to_string()))
-        .insert(Position(Vec2::new(0.0, 0.0)))
+        .insert(sun_position.clone())
         .insert(Velocity(Vec2::new(0.0, 0.0)))
-        .insert(Mass(1.989e30));
+        .insert(Mass(1.989e30))
+        .insert(TracePoint::new(sun_position));
 
     commands = add_planet(
         commands,
@@ -147,6 +156,7 @@ fn setup(mut commands: Commands) {
         Position(Vec2::new(69.817445e9, 0.0)),
         Velocity(Vec2::new(0.0, 38.7e3)),
         Mass(3.285e23),
+        false,
     );
 
     commands = add_planet(
@@ -155,6 +165,7 @@ fn setup(mut commands: Commands) {
         Position(Vec2::new(-108e9, 0.0)),
         Velocity(Vec2::new(0.0, -35.0e3)),
         Mass(4.867e24),
+        false,
     );
 
     commands = add_planet(
@@ -163,6 +174,7 @@ fn setup(mut commands: Commands) {
         Position(Vec2::new(0.0, 152.098232e9)),
         Velocity(Vec2::new(-29.4e3, 0.0)),
         Mass(5.9722e24),
+        false,
     );
 
     add_planet(
@@ -171,6 +183,7 @@ fn setup(mut commands: Commands) {
         Position(Vec2::new(0.0, -249.232e9)),
         Velocity(Vec2::new(22.0e3, 0.0)),
         Mass(6.4171e23),
+        false,
     );
 }
 
@@ -184,7 +197,7 @@ fn add_trace_point(mut commands: Commands, mut query: Query<&mut TracePoint>) {
             continue;
         }
 
-        let scaled = trace.position.mul(SCALE);
+        let scaled = trace.position.0.mul(SCALE);
         commands.spawn_bundle(GeometryBuilder::build_as(
             &trace_point_shape,
             ShapeColors::new(Color::DARK_GREEN),
@@ -202,6 +215,7 @@ fn add_planet(
     position: Position,
     velocity: Velocity,
     mass: Mass,
+    add_trace: bool,
 ) -> Commands {
     let shape = shapes::Circle {
         radius: 2.0,
@@ -209,7 +223,7 @@ fn add_planet(
     };
     let scaled_position = position.0.mul(SCALE);
 
-    commands
+    let entity = commands
         .spawn_bundle(GeometryBuilder::build_as(
             &shape,
             ShapeColors::new(Color::BLACK),
@@ -221,10 +235,12 @@ fn add_planet(
         .insert(position.clone())
         .insert(velocity)
         .insert(mass)
-        .insert(TracePoint {
-            position: position.0,
-            drawn: false,
-        });
+        .id();
+
+        if add_trace {
+            commands.entity(entity)
+            .insert(TracePoint::new(position));
+        }
 
     commands
 }
