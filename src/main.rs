@@ -12,6 +12,7 @@ fn main() {
         .add_plugin(ShapePlugin)
         .init_resource::<ViewScale>()
         .add_startup_system(setup.system())
+        .add_system_to_stage(CoreStage::PreUpdate, set_init_sun_velocity.system())
         .add_system(zoom_view.system().label("zoom view"))
         .add_system(scale_object_sizes.system().after("zoom view"))
         .add_system(
@@ -43,6 +44,8 @@ struct Velocity(Vec2);
 struct Star;
 
 struct Planet;
+
+struct SetInitVelocity;
 
 #[derive(Clone)]
 struct Mass(f32);
@@ -133,6 +136,35 @@ fn scale_object_sizes(
     }
 }
 
+fn set_init_sun_velocity(
+    mut commands: Commands,
+    mut query: QuerySet<(
+        Query<(Entity, &mut Velocity), With<SetInitVelocity>>,
+        Query<(&Mass, &Velocity)>,
+    )>,
+) {
+    if query.q0_mut().iter_mut().count() == 0 {
+        return;
+    }
+
+    let mut mass_velocity: Vec2 = Vec2::new(0.0, 0.0);
+    let mut total_mass = 0.0;
+
+    for (mass, velocity) in query.q1().iter() {
+        mass_velocity = mass_velocity + mass.0 * velocity.0;
+        total_mass = total_mass + mass.0;
+    }
+
+    let init_velocity = mass_velocity.mul(-1.0) / total_mass;
+    println!("Set init velocity to: {}", init_velocity);
+
+    for (entity, mut velocity) in query.q0_mut().single_mut() {
+        velocity.0 = init_velocity;
+
+        commands.entity(entity).remove::<SetInitVelocity>();
+    }
+}
+
 fn calculate_new_state(
     mut query: Query<
         (
@@ -201,6 +233,7 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
             Transform::default(),
         ))
         .insert(Star)
+        .insert(SetInitVelocity)
         .insert(Name("Sun".to_string()))
         .insert(sun_position.clone())
         .insert(Velocity(Vec2::new(0.0, 0.0)))
