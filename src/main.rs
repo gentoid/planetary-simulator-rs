@@ -342,7 +342,11 @@ fn add_trace_point(
             continue;
         }
 
-        let scaled = trace.position.truncate().mul(view_scale.0).extend(trace.position.z);
+        let scaled = trace
+            .position
+            .truncate()
+            .mul(view_scale.0)
+            .extend(trace.position.z);
         commands.spawn_bundle(GeometryBuilder::build_as(
             &trace_point_shape,
             ShapeColors::new(Color::DARK_GREEN),
