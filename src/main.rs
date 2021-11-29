@@ -128,7 +128,7 @@ fn zoom_view(mut scroll_event: EventReader<MouseWheel>, mut view_scale: ResMut<V
 }
 
 fn scale_object_sizes(
-    view_scale: ResMut<ViewScale>,
+    view_scale: Res<ViewScale>,
     mut query: Query<(&Diameter, &mut Transform, &Name)>,
 ) {
     if !view_scale.is_changed() {
