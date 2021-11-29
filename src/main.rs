@@ -53,7 +53,7 @@ struct Mass(f32);
 struct Diameter(f32);
 
 struct TracePoint {
-    position: Position,
+    position: Vec3,
     drawn: bool,
 }
 
@@ -68,7 +68,7 @@ impl Default for ViewScale {
 impl TracePoint {
     fn new(position: Position) -> Self {
         Self {
-            position,
+            position: position.0.extend(100.0),
             drawn: false,
         }
     }
@@ -88,7 +88,7 @@ struct Name(String);
 
 fn update_trace_point(mut query: Query<(&mut TracePoint, &Position)>) {
     for (mut trace_point, position) in query.iter_mut() {
-        trace_point.position = position.clone();
+        trace_point.position = position.0.extend(trace_point.position.z);
         trace_point.drawn = false;
     }
 }
@@ -296,7 +296,7 @@ fn add_trace_point(
             continue;
         }
 
-        let scaled = trace.position.0.mul(view_scale.0);
+        let scaled = trace.position.truncate().mul(view_scale.0).extend(trace.position.z);
         commands.spawn_bundle(GeometryBuilder::build_as(
             &trace_point_shape,
             ShapeColors::new(Color::DARK_GREEN),
