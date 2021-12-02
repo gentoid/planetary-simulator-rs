@@ -7,7 +7,7 @@ const CALCULATE_TIME_STEP: f32 = 0.05;
 const DRAW_TIME_STEP: f32 = CALCULATE_TIME_STEP * 24.0;
 
 fn main() {
-    App::build()
+    App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(ShapePlugin)
         .init_resource::<ViewScale>()
@@ -38,35 +38,41 @@ fn main() {
 
 const MAX_SCALE_LINE_LENGTH: f32 = 200.0;
 
-#[derive(Debug)]
+#[derive(Component, Debug)]
 struct ScaleRuler {
     distance: f32,
     unit: String,
     length: f32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Component)]
 struct Position(Vec2);
 
-#[derive(Clone)]
+#[derive(Clone, Component)]
 struct Velocity(Vec2);
 
+#[derive(Component)]
 struct Star;
 
+#[derive(Component)]
 struct Planet;
 
+#[derive(Component)]
 struct SetInitVelocity;
 
-#[derive(Clone)]
+#[derive(Clone, Component)]
 struct Mass(f32);
 
+#[derive(Component)]
 struct Diameter(f32);
 
+#[derive(Component)]
 struct TracePoint {
     position: Vec3,
     drawn: bool,
 }
 
+#[derive(Component)]
 struct ViewScale(f32);
 
 impl Default for ViewScale {
@@ -93,7 +99,7 @@ const SCALE_CHANGE_BY: f32 = 1.3;
 const MIN_STAR_SIZE: f32 = 4.0;
 // const MIN_PLANET_SIZE: f32 = 2.0;
 
-#[derive(Clone)]
+#[derive(Clone, Component)]
 struct Name(String);
 
 fn update_trace_point(mut query: Query<(&mut TracePoint, &Position)>) {
@@ -179,11 +185,11 @@ fn update_scale_line(view_scale: Res<ViewScale>, mut query: Query<&mut ScaleRule
 fn set_init_sun_velocity(
     mut commands: Commands,
     mut query: QuerySet<(
-        Query<(Entity, &mut Velocity), With<SetInitVelocity>>,
-        Query<(&Mass, &Velocity)>,
+        QueryState<(Entity, &mut Velocity), With<SetInitVelocity>>,
+        QueryState<(&Mass, &Velocity)>,
     )>,
 ) {
-    if query.q0_mut().iter_mut().count() == 0 {
+    if query.q0().iter_mut().count() == 0 {
         return;
     }
 
@@ -198,11 +204,10 @@ fn set_init_sun_velocity(
     let init_velocity = mass_velocity.mul(-1.0) / total_mass;
     println!("Set init velocity to: {}", init_velocity);
 
-    for (entity, mut velocity) in query.q0_mut().single_mut() {
-        velocity.0 = init_velocity;
-
-        commands.entity(entity).remove::<SetInitVelocity>();
-    }
+    let mut query0 = query.q0();
+    let (entity, mut velocity) = query0.single_mut();
+    velocity.0 = init_velocity;
+    commands.entity(entity).remove::<SetInitVelocity>();
 }
 
 fn calculate_new_state(
@@ -274,8 +279,8 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
     commands
         .spawn_bundle(GeometryBuilder::build_as(
             &sun_circle,
-            ShapeColors::new(Color::YELLOW),
-            DrawMode::Fill(FillOptions::default()),
+            // ShapeColors::new(Color::YELLOW),
+            DrawMode::Fill(FillMode::color(Color::YELLOW)),
             Transform::default(),
         ))
         .insert(Star)
@@ -349,8 +354,8 @@ fn add_trace_point(
             .extend(trace.position.z);
         commands.spawn_bundle(GeometryBuilder::build_as(
             &trace_point_shape,
-            ShapeColors::new(Color::DARK_GREEN),
-            DrawMode::Fill(FillOptions::default()),
+            // ShapeColors::new(Color::DARK_GREEN),
+            DrawMode::Fill(FillMode::color(Color::DARK_GREEN)),
             Transform::from_xyz(scaled.x, scaled.y, 0.0),
         ));
 
@@ -358,15 +363,15 @@ fn add_trace_point(
     }
 }
 
-fn add_planet<'a>(
-    mut commands: Commands<'a>,
+fn add_planet<'w, 's>(
+    mut commands: Commands<'w, 's>,
     name: Name,
     position: Position,
     velocity: Velocity,
     mass: Mass,
     view_scale: f32,
     add_trace: bool,
-) -> Commands<'a> {
+) -> Commands<'w, 's> {
     let shape = shapes::Circle {
         radius: 2.0,
         center: Vec2::new(0.0, 0.0),
@@ -376,8 +381,8 @@ fn add_planet<'a>(
     let entity = commands
         .spawn_bundle(GeometryBuilder::build_as(
             &shape,
-            ShapeColors::new(Color::BLACK),
-            DrawMode::Fill(FillOptions::default()),
+            // ShapeColors::new(Color::BLACK),
+            DrawMode::Fill(FillMode::color(Color::BLACK)),
             Transform::from_xyz(scaled_position.x, scaled_position.y, 0.0),
         ))
         .insert(Planet)
