@@ -27,12 +27,12 @@ fn main() {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(DRAW_TIME_STEP as f64))
-                .with_system(list_objects.system().label("list"))
+                // .with_system(list_objects.system().label("list"))
                 .with_system(
                     add_trace_point
                         .system()
                         .label("add_trace_point")
-                        .after("list"),
+                        // .after("list"),
                 )
                 .with_system(update_trace_point.system().after("add_trace_point")),
         )
@@ -112,6 +112,7 @@ fn update_trace_point(mut query: Query<(&mut TracePoint, &Position)>) {
     }
 }
 
+#[allow(unused)]
 fn list_objects(query: Query<(&Name, &Position, &Velocity), With<Mass>>) {
     for (name, position, velocity) in query.iter() {
         println!(
