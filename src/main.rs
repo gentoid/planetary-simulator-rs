@@ -3,15 +3,18 @@ use std::ops::{AddAssign, DivAssign, Mul, MulAssign};
 use bevy::{core::FixedTimestep, input::mouse::MouseWheel, prelude::*};
 use bevy_prototype_lyon::prelude::*;
 
-const CALCULATE_TIME_STEP: f32 = 0.05;
+pub mod ui;
+
 const DRAW_TIME_STEP: f32 = CALCULATE_TIME_STEP * 24.0;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(ShapePlugin)
+        .add_plugin(ui::TogglePlugin)
         .init_resource::<ViewScale>()
         .add_startup_system(setup.system())
+        .add_plugin(ui::TogglePlugin)
         .add_system_to_stage(CoreStage::PreUpdate, set_init_sun_velocity.system())
         .add_system(zoom_view.system().label("zoom view"))
         .add_system(scale_object_sizes.system().after("zoom view"))
