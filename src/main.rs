@@ -5,7 +5,8 @@ use bevy_prototype_lyon::prelude::*;
 
 pub mod ui;
 
-const DRAW_TIME_STEP: f32 = CALCULATE_TIME_STEP * 24.0;
+const CALCULATE_TIME_STEP: f32 = 0.005;
+const DRAW_TIME_STEP: f32 = CALCULATE_TIME_STEP * 120.0;
 
 fn main() {
     App::new()
