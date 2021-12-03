@@ -15,7 +15,6 @@ fn main() {
         .add_plugin(ui::TogglePlugin)
         .init_resource::<ViewScale>()
         .add_startup_system(setup.system())
-        .add_plugin(ui::TogglePlugin)
         .add_system_to_stage(CoreStage::PreUpdate, set_init_sun_velocity.system())
         .add_system(zoom_view.system().label("zoom view"))
         .add_system(scale_object_sizes.system().after("zoom view"))
