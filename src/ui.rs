@@ -8,9 +8,19 @@ pub struct TogglePlugin;
 impl Plugin for TogglePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ToggleMaterials>()
-            .add_startup_system(draw.system());
+            .add_startup_system(initial_draw.system())
+            .add_system(switch_toggle.system());
     }
 }
+
+#[derive(Component)]
+struct ToggleState(bool);
+
+#[derive(Component)]
+struct SliderBorder;
+
+#[derive(Component)]
+struct SliderBody;
 
 struct ToggleMaterials {
     slider_enabled: Handle<ColorMaterial>,
@@ -34,7 +44,58 @@ impl FromWorld for ToggleMaterials {
     }
 }
 
-fn draw(mut commands: Commands, materials: Res<ToggleMaterials>) {
+fn switch_toggle(
+    mouse_click: Res<Input<MouseButton>>,
+    materials: Res<ToggleMaterials>,
+    mut query: QuerySet<(
+        QueryState<&mut ToggleState>,
+        QueryState<(&mut Transform, &mut Handle<ColorMaterial>), With<SliderBorder>>,
+        QueryState<(&mut Handle<ColorMaterial>), With<SliderBody>>,
+    )>,
+) {
+    if mouse_click.pressed(MouseButton::Left) {
+        let mut query0 = query.q0();
+        let mut toggle_state = query0.single_mut();
+
+        let is_enabled = !toggle_state.0;
+        toggle_state.0 = is_enabled;
+
+        let new_border_translation = if is_enabled {
+            Vec3::new(12.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 0.0, 0.0)
+        };
+
+        let new_slider_borler = if is_enabled {
+            materials.border_enabled.clone()
+        } else {
+            materials.border_disabled.clone()
+        };
+
+        {
+            let mut query1 = query.q1();
+            let (mut transform_border, mut material_border) = query1.single_mut();
+
+            transform_border.translation = new_border_translation;
+            *material_border = new_slider_borler;
+        }
+
+        let slider_color = if is_enabled {
+            materials.slider_enabled.clone()
+        } else {
+            materials.slider_disabled.clone()
+        };
+
+        {
+            let mut query2 = query.q2();
+            let mut material_bofy = query2.single_mut();
+
+            *material_bofy = slider_color;
+        }
+    }
+}
+
+fn initial_draw(mut commands: Commands, materials: Res<ToggleMaterials>) {
     // let mut builder = PathBuilder::new();
     // builder.move_to(Vec2::new(10.0, 0.0));
     // builder.line_to(Vec2::new(20.0, 0.0));
@@ -53,6 +114,7 @@ fn draw(mut commands: Commands, materials: Res<ToggleMaterials>) {
     let border_width = Val::Px(1.0);
     let toggle_padding = Val::Px(3.0);
     let slider_width = Val::Px(16.0);
+    let initial_toggle_state = ToggleState(false);
     commands
         // root: border
         .spawn_bundle(NodeBundle {
@@ -64,6 +126,7 @@ fn draw(mut commands: Commands, materials: Res<ToggleMaterials>) {
             material: materials.border_enabled.clone(),
             ..Default::default()
         })
+        .insert(initial_toggle_state)
         .with_children(|parent| {
             // root: background
             parent
@@ -88,16 +151,19 @@ fn draw(mut commands: Commands, materials: Res<ToggleMaterials>) {
                             material: materials.border_disabled.clone(),
                             ..Default::default()
                         })
+                        .insert(SliderBorder)
                         .with_children(|parent| {
                             // toggle slider: body
-                            parent.spawn_bundle(NodeBundle {
-                                style: Style {
-                                    size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                            parent
+                                .spawn_bundle(NodeBundle {
+                                    style: Style {
+                                        size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                                        ..Default::default()
+                                    },
+                                    material: materials.slider_disabled.clone(),
                                     ..Default::default()
-                                },
-                                material: materials.slider_disabled.clone(),
-                                ..Default::default()
-                            });
+                                })
+                                .insert(SliderBody);
                         });
                 });
         });
