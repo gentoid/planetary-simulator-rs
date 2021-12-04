@@ -4,7 +4,7 @@ struct ToggleSwitchPlugin;
 
 impl Plugin for ToggleSwitchPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ToggleMaterials>()
+        app.init_resource::<Materials>()
             .add_system(toggle.system());
     }
 }
@@ -21,7 +21,7 @@ struct ToggleSlider;
 #[derive(Component)]
 struct SliderBody;
 
-pub struct ToggleMaterials {
+pub struct Materials {
     slider_enabled: Handle<ColorMaterial>,
     slider_disabled: Handle<ColorMaterial>,
     border_disabled: Handle<ColorMaterial>,
@@ -29,10 +29,10 @@ pub struct ToggleMaterials {
     bg: Handle<ColorMaterial>,
 }
 
-impl FromWorld for ToggleMaterials {
+impl FromWorld for Materials {
     fn from_world(world: &mut World) -> Self {
         let mut materials = world.get_resource_mut::<Assets<ColorMaterial>>().unwrap();
-        ToggleMaterials {
+        Materials {
             slider_enabled: materials.add(Color::rgb(0.0, 0.7, 0.0).into()),
             slider_disabled: materials.add(Color::rgb(0.25, 0.25, 0.25).into()),
             border_disabled: materials.add(Color::rgb(0.2, 0.2, 0.2).into()),
@@ -42,7 +42,7 @@ impl FromWorld for ToggleMaterials {
     }
 }
 
-pub fn draw(parent: &mut ChildBuilder, materials: Res<ToggleMaterials>) {
+pub fn draw(parent: &mut ChildBuilder, materials: &Res<Materials>) {
     let root_size = (Val::Px(40.0), Val::Px(20.0));
     let border_width = Val::Px(1.0);
     let toggle_padding = Val::Px(3.0);
@@ -113,7 +113,7 @@ pub fn draw(parent: &mut ChildBuilder, materials: Res<ToggleMaterials>) {
 fn toggle(
     mouse_click: Res<Input<MouseButton>>,
     windows: Res<Windows>,
-    materials: Res<ToggleMaterials>,
+    materials: Res<Materials>,
     mut state_query: Query<(&mut ToggleState, &Style, &GlobalTransform), Without<SliderKeeper>>,
     mut slider_keeper_query: Query<&mut Style, With<SliderKeeper>>,
     mut slider_query_set: QuerySet<(
