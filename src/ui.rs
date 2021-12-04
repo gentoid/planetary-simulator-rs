@@ -14,10 +14,10 @@ impl Plugin for TogglePlugin {
 struct ToggleState(bool);
 
 #[derive(Component)]
-struct SliderParent;
+struct SliderKeeper;
 
 #[derive(Component)]
-struct SliderBorder;
+struct ToggleSlider;
 
 #[derive(Component)]
 struct SliderBody;
@@ -47,52 +47,44 @@ impl FromWorld for ToggleMaterials {
 fn switch_toggle(
     mouse_click: Res<Input<MouseButton>>,
     materials: Res<ToggleMaterials>,
-    mut query: QuerySet<(
-        QueryState<&mut ToggleState>,
-        QueryState<&mut Style, With<SliderParent>>,
-        QueryState<&mut Handle<ColorMaterial>, With<SliderBorder>>,
+    mut state_query: Query<&mut ToggleState>,
+    mut slider_keeper_query: Query<&mut Style, With<SliderKeeper>>,
+    mut slider_query_set: QuerySet<(
+        QueryState<&mut Handle<ColorMaterial>, With<ToggleSlider>>,
         QueryState<&mut Handle<ColorMaterial>, With<SliderBody>>,
     )>,
 ) {
     if mouse_click.just_pressed(MouseButton::Left) {
-        let mut query0 = query.q0();
-        let mut toggle_state = query0.single_mut();
+        let mut toggle_state = state_query.single_mut();
 
         let is_enabled = !toggle_state.0;
         toggle_state.0 = is_enabled;
 
-        let new_border_style = if is_enabled {
+        let mut slider_keeper_style = slider_keeper_query.single_mut();
+
+        slider_keeper_style.justify_content = if is_enabled {
             JustifyContent::FlexEnd
         } else {
             JustifyContent::FlexStart
         };
 
-        let mut query1 = query.q1();
-        let mut slider_parent_style = query1.single_mut();
+        let mut slider_query = slider_query_set.q0();
+        let mut border_color = slider_query.single_mut();
 
-        slider_parent_style.justify_content = new_border_style;
-
-        let new_slider_borler = if is_enabled {
+        *border_color = if is_enabled {
             materials.border_enabled.clone()
         } else {
             materials.border_disabled.clone()
         };
 
-        let mut query2 = query.q2();
-        let mut material_border = query2.single_mut();
+        let mut slider_body_query = slider_query_set.q1();
+        let mut slider_body_color = slider_body_query.single_mut();
 
-        *material_border = new_slider_borler;
-
-        let slider_color = if is_enabled {
+        *slider_body_color = if is_enabled {
             materials.slider_enabled.clone()
         } else {
             materials.slider_disabled.clone()
         };
-
-        let mut query3 = query.q3();
-        let mut material_bofy = query3.single_mut();
-
-        *material_bofy = slider_color;
     }
 }
 
@@ -127,7 +119,7 @@ fn initial_draw(mut commands: Commands, materials: Res<ToggleMaterials>) {
                     material: materials.bg.clone(),
                     ..Default::default()
                 })
-                .insert(SliderParent)
+                .insert(SliderKeeper)
                 .with_children(|parent| {
                     // toggle slider: border
                     parent
@@ -140,7 +132,7 @@ fn initial_draw(mut commands: Commands, materials: Res<ToggleMaterials>) {
                             material: materials.border_disabled.clone(),
                             ..Default::default()
                         })
-                        .insert(SliderBorder)
+                        .insert(ToggleSlider)
                         .with_children(|parent| {
                             // toggle slider: body
                             parent
