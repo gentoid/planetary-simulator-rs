@@ -46,8 +46,9 @@ impl FromWorld for ToggleMaterials {
 
 fn switch_toggle(
     mouse_click: Res<Input<MouseButton>>,
+    windows: Res<Windows>,
     materials: Res<ToggleMaterials>,
-    mut state_query: Query<&mut ToggleState>,
+    mut state_query: Query<(&mut ToggleState, &mut Style, &GlobalTransform), Without<SliderKeeper>>,
     mut slider_keeper_query: Query<&mut Style, With<SliderKeeper>>,
     mut slider_query_set: QuerySet<(
         QueryState<&mut Handle<ColorMaterial>, With<ToggleSlider>>,
@@ -55,7 +56,35 @@ fn switch_toggle(
     )>,
 ) {
     if mouse_click.just_pressed(MouseButton::Left) {
-        let mut toggle_state = state_query.single_mut();
+        let (mut toggle_state, mut style, global_transform) = state_query.single_mut();
+
+        let primary_window = windows.get_primary().unwrap();
+
+        if let Some(cursor_position) = primary_window.cursor_position() {
+            let clicked_inside_element = match (style.size.width, style.size.height) {
+                (Val::Px(width), Val::Px(height)) => {
+                    let center = global_transform.translation.truncate();
+
+                    let half_width = width / 2.0;
+                    let half_height = height / 2.0;
+                    let left_bottom_corner =
+                        Vec2::new(center.x - half_width, center.y - half_height);
+                    let right_top_corner =
+                        Vec2::new(center.x + half_width, center.y + half_height);
+
+                    cursor_position.cmpge(left_bottom_corner).all()
+                        && cursor_position.cmple(right_top_corner).all()
+                }
+                _ => false,
+            };
+
+            if !clicked_inside_element {
+                return;
+            }
+
+            style.position.left += 20.0;
+            style.position.bottom += 10.0;
+        }
 
         let is_enabled = !toggle_state.0;
         toggle_state.0 = is_enabled;
@@ -100,6 +129,12 @@ fn initial_draw(mut commands: Commands, materials: Res<ToggleMaterials>) {
             style: Style {
                 size: Size::new(root_size.0, root_size.1),
                 padding: Rect::all(border_width),
+                position: Rect {
+                    left: Val::Px(0.0),
+                    bottom: Val::Px(0.0),
+                    right: Val::Undefined,
+                    top: Val::Undefined,
+                },
                 ..Default::default()
             },
             material: materials.border_enabled.clone(),
