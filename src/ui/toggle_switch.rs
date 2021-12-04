@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-struct ToggleSwitchPlugin;
+pub struct ToggleSwitchPlugin;
 
 impl Plugin for ToggleSwitchPlugin {
     fn build(&self, app: &mut App) {
