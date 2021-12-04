@@ -12,7 +12,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(ShapePlugin)
-        .add_plugin(ui::TogglePlugin)
+        // .add_plugin(ui::TogglePlugin)
         .init_resource::<ViewScale>()
         .add_startup_system(setup.system())
         .add_system_to_stage(CoreStage::PreUpdate, set_init_sun_velocity.system())
