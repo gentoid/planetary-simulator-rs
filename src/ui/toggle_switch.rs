@@ -1,5 +1,14 @@
 use bevy::prelude::*;
 
+struct ToggleSwitchPlugin;
+
+impl Plugin for ToggleSwitchPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ToggleMaterials>()
+            .add_system(toggle.system());
+    }
+}
+
 #[derive(Component)]
 struct ToggleState(bool);
 
@@ -12,7 +21,7 @@ struct ToggleSlider;
 #[derive(Component)]
 struct SliderBody;
 
-struct ToggleMaterials {
+pub struct ToggleMaterials {
     slider_enabled: Handle<ColorMaterial>,
     slider_disabled: Handle<ColorMaterial>,
     border_disabled: Handle<ColorMaterial>,
@@ -33,7 +42,7 @@ impl FromWorld for ToggleMaterials {
     }
 }
 
-fn initial_draw(parent: &mut ChildBuilder, materials: Res<ToggleMaterials>) {
+pub fn draw(parent: &mut ChildBuilder, materials: Res<ToggleMaterials>) {
     let root_size = (Val::Px(40.0), Val::Px(20.0));
     let border_width = Val::Px(1.0);
     let toggle_padding = Val::Px(3.0);
@@ -101,7 +110,7 @@ fn initial_draw(parent: &mut ChildBuilder, materials: Res<ToggleMaterials>) {
         });
 }
 
-fn switch_toggle(
+fn toggle(
     mouse_click: Res<Input<MouseButton>>,
     windows: Res<Windows>,
     materials: Res<ToggleMaterials>,
