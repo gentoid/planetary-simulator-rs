@@ -114,7 +114,7 @@ fn toggle(
     mouse_click: Res<Input<MouseButton>>,
     windows: Res<Windows>,
     materials: Res<ToggleMaterials>,
-    mut state_query: Query<(&mut ToggleState, &mut Style, &GlobalTransform), Without<SliderKeeper>>,
+    mut state_query: Query<(&mut ToggleState, &Style, &GlobalTransform), Without<SliderKeeper>>,
     mut slider_keeper_query: Query<&mut Style, With<SliderKeeper>>,
     mut slider_query_set: QuerySet<(
         QueryState<&mut Handle<ColorMaterial>, With<ToggleSlider>>,
@@ -122,7 +122,7 @@ fn toggle(
     )>,
 ) {
     if mouse_click.just_pressed(MouseButton::Left) {
-        let (mut toggle_state, mut style, global_transform) = state_query.single_mut();
+        let (mut toggle_state, style, global_transform) = state_query.single_mut();
 
         let primary_window = windows.get_primary().unwrap();
 
