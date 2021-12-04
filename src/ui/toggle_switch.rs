@@ -4,8 +4,7 @@ pub struct ToggleSwitchPlugin;
 
 impl Plugin for ToggleSwitchPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Materials>()
-            .add_system(toggle.system());
+        app.init_resource::<Materials>().add_system(toggle.system());
     }
 }
 
@@ -42,72 +41,78 @@ impl FromWorld for Materials {
     }
 }
 
-pub fn draw(parent: &mut ChildBuilder, materials: &Res<Materials>) {
-    let root_size = (Val::Px(40.0), Val::Px(20.0));
-    let border_width = Val::Px(1.0);
-    let toggle_padding = Val::Px(3.0);
-    let slider_width = Val::Px(16.0);
-    let initial_toggle_state = ToggleState(false);
-    parent
-        // root: border
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(root_size.0, root_size.1),
-                padding: Rect::all(border_width),
-                position: Rect {
-                    left: Val::Px(0.0),
-                    bottom: Val::Px(0.0),
-                    right: Val::Undefined,
-                    top: Val::Undefined,
-                },
-                ..Default::default()
-            },
-            material: materials.border_enabled.clone(),
-            ..Default::default()
-        })
-        .insert(initial_toggle_state)
-        .with_children(|parent| {
-            // root: background
-            parent
-                .spawn_bundle(NodeBundle {
-                    style: Style {
-                        size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                        padding: Rect::all(toggle_padding),
-                        justify_content: JustifyContent::FlexStart,
-                        ..Default::default()
+pub fn draw<'a>(materials: &'a Res<Materials>) -> impl Fn(&mut ChildBuilder) + 'a {
+    return |parent| {
+        let root_size = (Val::Px(40.0), Val::Px(20.0));
+        let border_width = Val::Px(1.0);
+        let toggle_padding = Val::Px(3.0);
+        let slider_width = Val::Px(16.0);
+        let initial_toggle_state = ToggleState(false);
+    
+        parent
+            // root: border
+            .spawn_bundle(NodeBundle {
+                style: Style {
+                    size: Size::new(root_size.0, root_size.1),
+                    padding: Rect::all(border_width),
+                    position: Rect {
+                        left: Val::Px(0.0),
+                        bottom: Val::Px(0.0),
+                        right: Val::Undefined,
+                        top: Val::Undefined,
                     },
-                    material: materials.bg.clone(),
                     ..Default::default()
-                })
-                .insert(SliderKeeper)
-                .with_children(|parent| {
-                    // toggle slider: border
-                    parent
-                        .spawn_bundle(NodeBundle {
-                            style: Style {
-                                size: Size::new(slider_width, Val::Percent(100.0)),
-                                padding: Rect::all(border_width),
-                                ..Default::default()
-                            },
-                            material: materials.border_disabled.clone(),
+                },
+                material: materials.border_enabled.clone(),
+                ..Default::default()
+            })
+            .insert(initial_toggle_state)
+            .with_children(|parent| {
+                // root: background
+                parent
+                    .spawn_bundle(NodeBundle {
+                        style: Style {
+                            size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                            padding: Rect::all(toggle_padding),
+                            justify_content: JustifyContent::FlexStart,
                             ..Default::default()
-                        })
-                        .insert(ToggleSlider)
-                        .with_children(|parent| {
-                            // toggle slider: body
-                            parent
-                                .spawn_bundle(NodeBundle {
-                                    style: Style {
-                                        size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                                        ..Default::default()
-                                    },
-                                    material: materials.slider_disabled.clone(),
+                        },
+                        material: materials.bg.clone(),
+                        ..Default::default()
+                    })
+                    .insert(SliderKeeper)
+                    .with_children(|parent| {
+                        // toggle slider: border
+                        parent
+                            .spawn_bundle(NodeBundle {
+                                style: Style {
+                                    size: Size::new(slider_width, Val::Percent(100.0)),
+                                    padding: Rect::all(border_width),
                                     ..Default::default()
-                                })
-                                .insert(SliderBody);
-                        });
-                });
-        });
+                                },
+                                material: materials.border_disabled.clone(),
+                                ..Default::default()
+                            })
+                            .insert(ToggleSlider)
+                            .with_children(|parent| {
+                                // toggle slider: body
+                                parent
+                                    .spawn_bundle(NodeBundle {
+                                        style: Style {
+                                            size: Size::new(
+                                                Val::Percent(100.0),
+                                                Val::Percent(100.0),
+                                            ),
+                                            ..Default::default()
+                                        },
+                                        material: materials.slider_disabled.clone(),
+                                        ..Default::default()
+                                    })
+                                    .insert(SliderBody);
+                            });
+                    });
+            });
+    };
 }
 
 fn toggle(
@@ -135,8 +140,7 @@ fn toggle(
                     let half_height = height / 2.0;
                     let left_bottom_corner =
                         Vec2::new(center.x - half_width, center.y - half_height);
-                    let right_top_corner =
-                        Vec2::new(center.x + half_width, center.y + half_height);
+                    let right_top_corner = Vec2::new(center.x + half_width, center.y + half_height);
 
                     cursor_position.cmpge(left_bottom_corner).all()
                         && cursor_position.cmple(right_top_corner).all()
