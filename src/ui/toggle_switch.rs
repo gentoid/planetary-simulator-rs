@@ -138,33 +138,36 @@ fn toggle(
 
     let primary_window = windows.get_primary().unwrap();
 
-    if let Some(cursor_position) = primary_window.cursor_position() {
-        for (mut toggle_state, style, global_transform, children) in states_query.iter_mut() {
-            if !does_cursor_hover_element(style.size, global_transform, cursor_position) {
-                continue;
-            }
+    let cursor_position = match primary_window.cursor_position() {
+        None => return,
+        Some(position) => position,
+    };
 
-            let is_enabled = !toggle_state.0;
-            toggle_state.0 = is_enabled;
-
-            let rr = children
-                .first()
-                .ok_or(QueryEntityError::NoSuchEntity)
-                .and_then(|child| slider_keepers_query.get_mut(*child))
-                .map(update_slider_keeper(is_enabled))
-                .and_then(|children| children.first().ok_or(QueryEntityError::NoSuchEntity))
-                .and_then(|child| sliders_query.get_mut(*child))
-                .map(update_slider_border(&is_enabled, &materials))
-                .and_then(|children| children.first().ok_or(QueryEntityError::NoSuchEntity))
-                .and_then(|child| slider_body_query.get_mut(*child))
-                .map(update_clider_body(&is_enabled, &materials));
-
-            if let Err(err) = rr {
-                warn!("UI::ToggleSwitch error: {:?}", err);
-            }
-
-            return;
+    for (mut toggle_state, style, global_transform, children) in states_query.iter_mut() {
+        if !does_cursor_hover_element(style.size, global_transform, cursor_position) {
+            continue;
         }
+
+        let is_enabled = !toggle_state.0;
+        toggle_state.0 = is_enabled;
+
+        let rr = children
+            .first()
+            .ok_or(QueryEntityError::NoSuchEntity)
+            .and_then(|child| slider_keepers_query.get_mut(*child))
+            .map(update_slider_keeper(is_enabled))
+            .and_then(|children| children.first().ok_or(QueryEntityError::NoSuchEntity))
+            .and_then(|child| sliders_query.get_mut(*child))
+            .map(update_slider_border(&is_enabled, &materials))
+            .and_then(|children| children.first().ok_or(QueryEntityError::NoSuchEntity))
+            .and_then(|child| slider_body_query.get_mut(*child))
+            .map(update_clider_body(&is_enabled, &materials));
+
+        if let Err(err) = rr {
+            warn!("UI::ToggleSwitch error: {:?}", err);
+        }
+
+        return;
     }
 }
 
