@@ -140,23 +140,7 @@ fn toggle(
 
     if let Some(cursor_position) = primary_window.cursor_position() {
         for (mut toggle_state, style, global_transform, children) in states_query.iter_mut() {
-            let clicked_inside_element = match (style.size.width, style.size.height) {
-                (Val::Px(width), Val::Px(height)) => {
-                    let center = global_transform.translation.truncate();
-
-                    let half_width = width / 2.0;
-                    let half_height = height / 2.0;
-                    let left_bottom_corner =
-                        Vec2::new(center.x - half_width, center.y - half_height);
-                    let right_top_corner = Vec2::new(center.x + half_width, center.y + half_height);
-
-                    cursor_position.cmpge(left_bottom_corner).all()
-                        && cursor_position.cmple(right_top_corner).all()
-                }
-                _ => false,
-            };
-
-            if !clicked_inside_element {
+            if !does_cursor_hover_element(style.size, global_transform, cursor_position) {
                 continue;
             }
 
@@ -181,6 +165,26 @@ fn toggle(
 
             return;
         }
+    }
+}
+
+fn does_cursor_hover_element(
+    size: Size<Val>,
+    global_transform: &GlobalTransform,
+    cursor_position: Vec2,
+) -> bool {
+    match (size.width, size.height) {
+        (Val::Px(width), Val::Px(height)) => {
+            let center = global_transform.translation.truncate();
+            let half_size = Vec2::new(width, height) / 2.0;
+
+            let left_bottom_corner = center - half_size;
+            let right_top_corner = center + half_size;
+
+            cursor_position.cmpge(left_bottom_corner).all()
+                && cursor_position.cmple(right_top_corner).all()
+        }
+        _ => false,
     }
 }
 
