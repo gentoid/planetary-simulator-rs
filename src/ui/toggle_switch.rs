@@ -41,13 +41,15 @@ impl FromWorld for Materials {
     }
 }
 
-pub fn draw<'a>(materials: &'a Res<Materials>) -> impl Fn(&mut ChildBuilder) + 'a {
-    return |parent| {
+pub fn draw<'a>(
+    initial_state: bool,
+    materials: &'a Res<Materials>,
+) -> impl Fn(&mut ChildBuilder) + 'a {
+    return move |parent| {
         let root_size = (Val::Px(40.0), Val::Px(20.0));
         let border_width = Val::Px(1.0);
         let toggle_padding = Val::Px(3.0);
         let slider_width = Val::Px(16.0);
-        let initial_toggle_state = ToggleState(false);
 
         parent
             // root: border
@@ -66,7 +68,7 @@ pub fn draw<'a>(materials: &'a Res<Materials>) -> impl Fn(&mut ChildBuilder) + '
                 material: materials.border_enabled.clone(),
                 ..Default::default()
             })
-            .insert(initial_toggle_state)
+            .insert(ToggleState(initial_state))
             .with_children(|parent| {
                 // root: background
                 parent
@@ -74,7 +76,7 @@ pub fn draw<'a>(materials: &'a Res<Materials>) -> impl Fn(&mut ChildBuilder) + '
                         style: Style {
                             size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                             padding: Rect::all(toggle_padding),
-                            justify_content: JustifyContent::FlexStart,
+                            justify_content: slider_keeper_justify_content(initial_state),
                             ..Default::default()
                         },
                         material: materials.bg.clone(),
@@ -90,7 +92,7 @@ pub fn draw<'a>(materials: &'a Res<Materials>) -> impl Fn(&mut ChildBuilder) + '
                                     padding: Rect::all(border_width),
                                     ..Default::default()
                                 },
-                                material: materials.border_disabled.clone(),
+                                material: slider_border_color(initial_state, &materials),
                                 ..Default::default()
                             })
                             .insert(ToggleSlider)
@@ -105,7 +107,7 @@ pub fn draw<'a>(materials: &'a Res<Materials>) -> impl Fn(&mut ChildBuilder) + '
                                             ),
                                             ..Default::default()
                                         },
-                                        material: materials.slider_disabled.clone(),
+                                        material: slider_body_color(initial_state, &materials),
                                         ..Default::default()
                                     })
                                     .insert(SliderBody);
@@ -186,13 +188,17 @@ fn update_slider_keeper<'a>(
     is_enabled: bool,
 ) -> impl FnOnce((Mut<Style>, &'a Children)) -> &'a Children {
     move |(mut style, children)| {
-        style.justify_content = if is_enabled {
-            JustifyContent::FlexEnd
-        } else {
-            JustifyContent::FlexStart
-        };
+        style.justify_content = slider_keeper_justify_content(is_enabled);
 
         children
+    }
+}
+
+fn slider_keeper_justify_content(is_enabled: bool) -> JustifyContent {
+    if is_enabled {
+        JustifyContent::FlexEnd
+    } else {
+        JustifyContent::FlexStart
     }
 }
 
@@ -201,13 +207,17 @@ fn update_slider_border<'a>(
     materials: &'a Res<Materials>,
 ) -> impl FnOnce((Mut<Handle<ColorMaterial>>, &'a Children)) -> &'a Children + 'a {
     move |(mut border_color, children)| {
-        *border_color = if *is_enabled {
-            materials.border_enabled.clone()
-        } else {
-            materials.border_disabled.clone()
-        };
+        *border_color = slider_border_color(*is_enabled, &materials);
 
         children
+    }
+}
+
+fn slider_border_color(is_enabled: bool, materials: &Res<Materials>) -> Handle<ColorMaterial> {
+    if is_enabled {
+        materials.border_enabled.clone()
+    } else {
+        materials.border_disabled.clone()
     }
 }
 
@@ -216,10 +226,14 @@ fn update_clider_body<'a>(
     materials: &'a Res<Materials>,
 ) -> impl FnOnce(Mut<Handle<ColorMaterial>>) + 'a {
     move |mut body_color| {
-        *body_color = if *is_enabled {
-            materials.slider_enabled.clone()
-        } else {
-            materials.slider_disabled.clone()
-        };
+        *body_color = slider_body_color(*is_enabled, &materials);
+    }
+}
+
+fn slider_body_color(is_enabled: bool, materials: &Res<Materials>) -> Handle<ColorMaterial> {
+    if is_enabled {
+        materials.slider_enabled.clone()
+    } else {
+        materials.slider_disabled.clone()
     }
 }

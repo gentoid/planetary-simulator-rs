@@ -37,6 +37,6 @@ fn draw(mut commands: Commands, toggle_materials: Res<toggle_switch::Materials>,
             material: ui_materials.bg.clone(),
             ..Default::default()
         })
-        .with_children(toggle_switch::draw(&toggle_materials))
-        .with_children(toggle_switch::draw(&toggle_materials));
+        .with_children(toggle_switch::draw(false, &toggle_materials))
+        .with_children(toggle_switch::draw(true, &toggle_materials));
 }
