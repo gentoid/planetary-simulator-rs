@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{ecs::query::QueryEntityError, prelude::*};
 
 pub struct ToggleSwitchPlugin;
 
@@ -48,7 +48,7 @@ pub fn draw<'a>(materials: &'a Res<Materials>) -> impl Fn(&mut ChildBuilder) + '
         let toggle_padding = Val::Px(3.0);
         let slider_width = Val::Px(16.0);
         let initial_toggle_state = ToggleState(false);
-    
+
         parent
             // root: border
             .spawn_bundle(NodeBundle {
@@ -119,19 +119,25 @@ fn toggle(
     mouse_click: Res<Input<MouseButton>>,
     windows: Res<Windows>,
     materials: Res<Materials>,
-    mut state_query: Query<(&mut ToggleState, &Style, &GlobalTransform), Without<SliderKeeper>>,
-    mut slider_keeper_query: Query<&mut Style, With<SliderKeeper>>,
-    mut slider_query_set: QuerySet<(
-        QueryState<&mut Handle<ColorMaterial>, With<ToggleSlider>>,
-        QueryState<&mut Handle<ColorMaterial>, With<SliderBody>>,
-    )>,
+    mut states_query: Query<
+        (&mut ToggleState, &Style, &GlobalTransform, &Children),
+        Without<SliderKeeper>,
+    >,
+    mut slider_keepers_query: Query<(&mut Style, &Children), With<SliderKeeper>>,
+    mut sliders_query: Query<
+        (&mut Handle<ColorMaterial>, &Children),
+        (With<ToggleSlider>, Without<SliderBody>),
+    >,
+    mut slider_body_query: Query<&mut Handle<ColorMaterial>, With<SliderBody>>,
 ) {
-    if mouse_click.just_pressed(MouseButton::Left) {
-        let (mut toggle_state, style, global_transform) = state_query.single_mut();
+    if !mouse_click.just_pressed(MouseButton::Left) {
+        return;
+    }
 
-        let primary_window = windows.get_primary().unwrap();
+    let primary_window = windows.get_primary().unwrap();
 
-        if let Some(cursor_position) = primary_window.cursor_position() {
+    if let Some(cursor_position) = primary_window.cursor_position() {
+        for (mut toggle_state, style, global_transform, children) in states_query.iter_mut() {
             let clicked_inside_element = match (style.size.width, style.size.height) {
                 (Val::Px(width), Val::Px(height)) => {
                     let center = global_transform.translation.truncate();
@@ -149,34 +155,68 @@ fn toggle(
             };
 
             if !clicked_inside_element {
-                return;
+                continue;
             }
+
+            let is_enabled = !toggle_state.0;
+            toggle_state.0 = is_enabled;
+
+            let rr = children
+                .first()
+                .ok_or(QueryEntityError::NoSuchEntity)
+                .and_then(|child| slider_keepers_query.get_mut(*child))
+                .map(update_slider_keeper(is_enabled))
+                .and_then(|children| children.first().ok_or(QueryEntityError::NoSuchEntity))
+                .and_then(|child| sliders_query.get_mut(*child))
+                .map(update_slider_border(&is_enabled, &materials))
+                .and_then(|children| children.first().ok_or(QueryEntityError::NoSuchEntity))
+                .and_then(|child| slider_body_query.get_mut(*child))
+                .map(update_clider_body(&is_enabled, &materials));
+
+            if let Err(err) = rr {
+                warn!("UI::ToggleSwitch error: {:?}", err);
+            }
+
+            return;
         }
+    }
+}
 
-        let is_enabled = !toggle_state.0;
-        toggle_state.0 = is_enabled;
-
-        let mut slider_keeper_style = slider_keeper_query.single_mut();
-
-        slider_keeper_style.justify_content = if is_enabled {
+fn update_slider_keeper<'a>(
+    is_enabled: bool,
+) -> impl FnOnce((Mut<Style>, &'a Children)) -> &'a Children {
+    move |(mut style, children)| {
+        style.justify_content = if is_enabled {
             JustifyContent::FlexEnd
         } else {
             JustifyContent::FlexStart
         };
 
-        let mut slider_query = slider_query_set.q0();
-        let mut border_color = slider_query.single_mut();
+        children
+    }
+}
 
-        *border_color = if is_enabled {
+fn update_slider_border<'a>(
+    is_enabled: &'a bool,
+    materials: &'a Res<Materials>,
+) -> impl FnOnce((Mut<Handle<ColorMaterial>>, &'a Children)) -> &'a Children + 'a {
+    move |(mut border_color, children)| {
+        *border_color = if *is_enabled {
             materials.border_enabled.clone()
         } else {
             materials.border_disabled.clone()
         };
 
-        let mut slider_body_query = slider_query_set.q1();
-        let mut slider_body_color = slider_body_query.single_mut();
+        children
+    }
+}
 
-        *slider_body_color = if is_enabled {
+fn update_clider_body<'a>(
+    is_enabled: &'a bool,
+    materials: &'a Res<Materials>,
+) -> impl FnOnce(Mut<Handle<ColorMaterial>>) + 'a {
+    move |mut body_color| {
+        *body_color = if *is_enabled {
             materials.slider_enabled.clone()
         } else {
             materials.slider_disabled.clone()
