@@ -1,7 +1,4 @@
-use bevy::{
-    ecs::query::{FilterFetch, QueryEntityError, QueryItem, WorldQuery},
-    prelude::*,
-};
+use bevy::{ecs::query::QueryEntityError, prelude::*};
 
 pub struct ToggleSwitchPlugin;
 
@@ -154,11 +151,14 @@ fn toggle(
         let is_enabled = !toggle_state.0;
         toggle_state.0 = is_enabled;
 
-        let rr = first_child(slider_keepers_query)(children)
+        let rr = first_child(children)
+            .and_then(|child| slider_keepers_query.get_mut(*child))
             .map(update_slider_keeper(is_enabled))
-            .and_then(first_child(sliders_query))
+            .and_then(first_child)
+            .and_then(|child| sliders_query.get_mut(*child))
             .map(update_slider_border(&is_enabled, &materials))
-            .and_then(first_child(slider_body_query))
+            .and_then(first_child)
+            .and_then(|child| slider_body_query.get_mut(*child))
             .map(update_clider_body(&is_enabled, &materials));
 
         if let Err(err) = rr {
@@ -169,16 +169,8 @@ fn toggle(
     }
 }
 
-fn first_child<'w, 's, Q: WorldQuery, F: WorldQuery>(
-    query: Query<'w, 's, Q, F>,
-) -> impl FnOnce(&Children) -> Result<QueryItem<Q>, QueryEntityError>
-where
-    F::Fetch: FilterFetch,
-{
-    move |children| children
-    .first()
-    .ok_or(QueryEntityError::NoSuchEntity)
-    .and_then(|child| query.get_mut(*child))
+fn first_child(children: &Children) -> Result<&Entity, QueryEntityError> {
+    children.first().ok_or(QueryEntityError::NoSuchEntity)
 }
 
 fn does_cursor_hover_element(
