@@ -9,7 +9,8 @@ impl Plugin for UiPlugin {
         app.init_resource::<Materials>()
             .add_plugin(toggle_switch::ToggleSwitchPlugin)
             .add_startup_system(draw.system())
-            .add_system(track_taces_toggle.system());
+            .add_system(track_traces_toggle.system())
+            .add_system(track_sun_presence_toggle.system());
     }
 }
 
@@ -57,7 +58,7 @@ fn draw(mut commands: Commands, ui_materials: Res<Materials>) {
         ));
 }
 
-fn track_taces_toggle(
+fn track_traces_toggle(
     query: Query<
         &toggle_switch::ToggleState,
         (With<ShowTracesToggle>, Changed<toggle_switch::ToggleState>),
@@ -65,5 +66,16 @@ fn track_taces_toggle(
 ) {
     for toggle_state in query.iter() {
         info!("Show traces: {:?}", toggle_state);
+    }
+}
+
+fn track_sun_presence_toggle(
+    query: Query<
+        &toggle_switch::ToggleState,
+        (With<AddSunToggle>, Changed<toggle_switch::ToggleState>),
+    >,
+) {
+    for toggle_state in query.iter() {
+        info!("Add the Sun: {:?}", toggle_state);
     }
 }
