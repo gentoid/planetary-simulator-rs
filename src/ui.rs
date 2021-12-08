@@ -7,9 +7,9 @@ pub struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Materials>()
-            .init_resource::<UiState>()
             .add_plugin(toggle_switch::ToggleSwitchPlugin)
-            .add_startup_system(draw.system());
+            .add_startup_system(draw.system())
+            .add_system(track_taces_toggle.system());
     }
 }
 
@@ -28,27 +28,13 @@ impl FromWorld for Materials {
     }
 }
 
-struct UiState {
-    add_sun_toggle: toggle_switch::ToggleState,
-    show_traces_toggle: toggle_switch::ToggleState,
-}
-
-impl Default for UiState {
-    fn default() -> Self {
-        Self {
-            add_sun_toggle: toggle_switch::ToggleState(true),
-            show_traces_toggle: toggle_switch::ToggleState(false),
-        }
-    }
-}
-
 #[derive(Component, Clone)]
 struct AddSunToggle;
 
 #[derive(Component, Clone)]
 struct ShowTracesToggle;
 
-fn draw(mut commands: Commands, ui_materials: Res<Materials>, state: Res<UiState>) {
+fn draw(mut commands: Commands, ui_materials: Res<Materials>) {
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
@@ -61,12 +47,23 @@ fn draw(mut commands: Commands, ui_materials: Res<Materials>, state: Res<UiState
         })
         .with_children(toggle_switch::draw(
             AddSunToggle,
-            state.add_sun_toggle,
+            toggle_switch::ToggleState(true),
             &ui_materials.toggle_switch,
         ))
         .with_children(toggle_switch::draw(
             ShowTracesToggle,
-            state.show_traces_toggle,
+            toggle_switch::ToggleState(false),
             &ui_materials.toggle_switch,
         ));
+}
+
+fn track_taces_toggle(
+    query: Query<
+        &toggle_switch::ToggleState,
+        (With<ShowTracesToggle>, Changed<toggle_switch::ToggleState>),
+    >,
+) {
+    for toggle_state in query.iter() {
+        info!("Show traces: {:?}", toggle_state);
+    }
 }

@@ -8,7 +8,7 @@ impl Plugin for ToggleSwitchPlugin {
     }
 }
 
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, Debug)]
 pub struct ToggleState(pub bool);
 
 impl ToggleState {
