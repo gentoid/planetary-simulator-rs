@@ -8,8 +8,14 @@ impl Plugin for ToggleSwitchPlugin {
     }
 }
 
-#[derive(Component)]
-struct ToggleState(bool);
+#[derive(Component, Clone, Copy)]
+pub struct ToggleState(pub bool);
+
+impl ToggleState {
+    fn toggle(&mut self) {
+        self.0 = !self.0;
+    }
+}
 
 #[derive(Component)]
 struct SliderKeeper;
@@ -42,8 +48,9 @@ impl FromWorld for Materials {
 }
 
 pub fn draw<'a>(
-    initial_state: bool,
-    materials: &'a Res<Materials>,
+    component: impl Component + Clone,
+    state: ToggleState,
+    materials: &'a Materials,
 ) -> impl Fn(&mut ChildBuilder) + 'a {
     return move |parent| {
         let root_size = (Val::Px(40.0), Val::Px(20.0));
@@ -68,7 +75,8 @@ pub fn draw<'a>(
                 material: materials.border_enabled.clone(),
                 ..Default::default()
             })
-            .insert(ToggleState(initial_state))
+            .insert(component.clone())
+            .insert(state.clone())
             .with_children(|parent| {
                 // root: background
                 parent
@@ -76,7 +84,7 @@ pub fn draw<'a>(
                         style: Style {
                             size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                             padding: Rect::all(toggle_padding),
-                            justify_content: slider_keeper_justify_content(initial_state),
+                            justify_content: slider_keeper_justify_content(&state),
                             ..Default::default()
                         },
                         material: materials.bg.clone(),
@@ -92,7 +100,7 @@ pub fn draw<'a>(
                                     padding: Rect::all(border_width),
                                     ..Default::default()
                                 },
-                                material: slider_border_color(initial_state, &materials),
+                                material: slider_border_color(&state, &materials),
                                 ..Default::default()
                             })
                             .insert(ToggleSlider)
@@ -107,7 +115,7 @@ pub fn draw<'a>(
                                             ),
                                             ..Default::default()
                                         },
-                                        material: slider_body_color(initial_state, &materials),
+                                        material: slider_body_color(&state, &materials),
                                         ..Default::default()
                                     })
                                     .insert(SliderBody);
@@ -143,23 +151,22 @@ fn toggle(
         Some(position) => position,
     };
 
-    for (mut toggle_state, style, global_transform, children) in states_query.iter_mut() {
+    for (mut state, style, global_transform, children) in states_query.iter_mut() {
         if !does_cursor_hover_element(style.size, global_transform, cursor_position) {
             continue;
         }
 
-        let is_enabled = !toggle_state.0;
-        toggle_state.0 = is_enabled;
+        state.toggle();
 
         let rr = first_child(children)
             .and_then(|child| slider_keepers_query.get_mut(*child))
-            .map(update_slider_keeper(is_enabled))
+            .map(update_slider_keeper(&state))
             .and_then(first_child)
             .and_then(|child| sliders_query.get_mut(*child))
-            .map(update_slider_border(&is_enabled, &materials))
+            .map(update_slider_border(&state, &materials))
             .and_then(first_child)
             .and_then(|child| slider_body_query.get_mut(*child))
-            .map(update_clider_body(&is_enabled, &materials));
+            .map(update_clider_body(&state, &materials));
 
         if let Err(err) = rr {
             warn!("UI::ToggleSwitch error: {:?}", err);
@@ -194,17 +201,17 @@ fn does_cursor_hover_element(
 }
 
 fn update_slider_keeper<'a>(
-    is_enabled: bool,
+    state: &'a ToggleState,
 ) -> impl FnOnce((Mut<Style>, &'a Children)) -> &'a Children {
     move |(mut style, children)| {
-        style.justify_content = slider_keeper_justify_content(is_enabled);
+        style.justify_content = slider_keeper_justify_content(state);
 
         children
     }
 }
 
-fn slider_keeper_justify_content(is_enabled: bool) -> JustifyContent {
-    if is_enabled {
+fn slider_keeper_justify_content(state: &ToggleState) -> JustifyContent {
+    if state.0 {
         JustifyContent::FlexEnd
     } else {
         JustifyContent::FlexStart
@@ -212,18 +219,18 @@ fn slider_keeper_justify_content(is_enabled: bool) -> JustifyContent {
 }
 
 fn update_slider_border<'a>(
-    is_enabled: &'a bool,
+    state: &'a ToggleState,
     materials: &'a Res<Materials>,
 ) -> impl FnOnce((Mut<Handle<ColorMaterial>>, &'a Children)) -> &'a Children + 'a {
     move |(mut border_color, children)| {
-        *border_color = slider_border_color(*is_enabled, &materials);
+        *border_color = slider_border_color(state, &materials);
 
         children
     }
 }
 
-fn slider_border_color(is_enabled: bool, materials: &Res<Materials>) -> Handle<ColorMaterial> {
-    if is_enabled {
+fn slider_border_color(state: &ToggleState, materials: &Materials) -> Handle<ColorMaterial> {
+    if state.0 {
         materials.border_enabled.clone()
     } else {
         materials.border_disabled.clone()
@@ -231,16 +238,16 @@ fn slider_border_color(is_enabled: bool, materials: &Res<Materials>) -> Handle<C
 }
 
 fn update_clider_body<'a>(
-    is_enabled: &'a bool,
+    state: &'a ToggleState,
     materials: &'a Res<Materials>,
 ) -> impl FnOnce(Mut<Handle<ColorMaterial>>) + 'a {
     move |mut body_color| {
-        *body_color = slider_body_color(*is_enabled, &materials);
+        *body_color = slider_body_color(state, &materials);
     }
 }
 
-fn slider_body_color(is_enabled: bool, materials: &Res<Materials>) -> Handle<ColorMaterial> {
-    if is_enabled {
+fn slider_body_color(state: &ToggleState, materials: &Materials) -> Handle<ColorMaterial> {
+    if state.0 {
         materials.slider_enabled.clone()
     } else {
         materials.slider_disabled.clone()
