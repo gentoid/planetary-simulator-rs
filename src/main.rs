@@ -2,6 +2,7 @@ use std::ops::{AddAssign, DivAssign, Mul, MulAssign};
 
 use bevy::{core::FixedTimestep, input::mouse::MouseWheel, prelude::*};
 use bevy_prototype_lyon::prelude::*;
+use ui::{toggle_switch::ToggleState, AddSunToggle};
 
 pub mod ui;
 
@@ -29,13 +30,11 @@ fn main() {
                 .with_run_criteria(FixedTimestep::step(DRAW_TIME_STEP as f64))
                 // .with_system(list_objects.system().label("list"))
                 .with_system(
-                    add_trace_point
-                        .system()
-                        .label("add_trace_point")
-                        // .after("list"),
+                    add_trace_point.system().label("add_trace_point"), // .after("list"),
                 )
                 .with_system(update_trace_point.system().after("add_trace_point")),
         )
+        .add_system(add_remove_sun.system())
         .run();
 }
 
@@ -124,6 +123,28 @@ fn list_objects(query: Query<(&Name, &Position, &Velocity), With<Mass>>) {
         );
     }
     println!("======");
+}
+
+fn add_remove_sun(
+    mut commands: Commands,
+    view_scale: Res<ViewScale>,
+    sun_query: Query<Entity, With<Star>>,
+    toggle_query: Query<&ToggleState, (With<AddSunToggle>, Changed<ToggleState>)>,
+) {
+    if toggle_query.is_empty() {
+        return;
+    }
+
+    let toggle = toggle_query.single();
+    let is_sun_present = !sun_query.is_empty();
+
+    if is_sun_present && !toggle.0 {
+        let sun = sun_query.single();
+        commands.entity(sun).despawn();
+    }
+    if !is_sun_present && toggle.0 {
+        add_sun(commands, &view_scale);
+    }
 }
 
 fn zoom_view(mut scroll_event: EventReader<MouseWheel>, mut view_scale: ResMut<ViewScale>) {
@@ -272,29 +293,7 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
         length: MAX_SCALE_LINE_LENGTH,
     });
 
-    let sun_position = Position(Vec2::new(0.0, 0.0));
-    let sun_diameter = 1.39268e9;
-
-    let sun_circle = shapes::Circle {
-        radius: f32::max(MIN_STAR_SIZE, sun_diameter * view_scale.0),
-        center: Vec2::new(0.0, 0.0),
-    };
-
-    commands
-        .spawn_bundle(GeometryBuilder::build_as(
-            &sun_circle,
-            // ShapeColors::new(Color::YELLOW),
-            DrawMode::Fill(FillMode::color(Color::YELLOW)),
-            Transform::default(),
-        ))
-        .insert(Star)
-        .insert(SetInitVelocity)
-        .insert(Name("Sun".to_string()))
-        .insert(sun_position.clone())
-        .insert(Velocity(Vec2::new(0.0, 0.0)))
-        .insert(Mass(1.989e30))
-        .insert(Diameter(sun_diameter))
-        .insert(TracePoint::new(sun_position));
+    commands = add_sun(commands, &view_scale);
 
     commands = add_planet(
         commands,
@@ -399,6 +398,34 @@ fn add_planet<'w, 's>(
     if add_trace {
         commands.entity(entity).insert(TracePoint::new(position));
     }
+
+    commands
+}
+
+fn add_sun<'w, 's>(mut commands: Commands<'w, 's>, view_scale: &ViewScale) -> Commands<'w, 's> {
+    let sun_position = Position(Vec2::new(0.0, 0.0));
+    let sun_diameter = 1.39268e9;
+
+    let sun_circle = shapes::Circle {
+        radius: f32::max(MIN_STAR_SIZE, sun_diameter * view_scale.0),
+        center: Vec2::new(0.0, 0.0),
+    };
+
+    commands
+        .spawn_bundle(GeometryBuilder::build_as(
+            &sun_circle,
+            // ShapeColors::new(Color::YELLOW),
+            DrawMode::Fill(FillMode::color(Color::YELLOW)),
+            Transform::default(),
+        ))
+        .insert(Star)
+        .insert(SetInitVelocity)
+        .insert(Name("Sun".to_string()))
+        .insert(sun_position.clone())
+        .insert(Velocity(Vec2::new(0.0, 0.0)))
+        .insert(Mass(1.989e30))
+        .insert(Diameter(sun_diameter))
+        .insert(TracePoint::new(sun_position));
 
     commands
 }
