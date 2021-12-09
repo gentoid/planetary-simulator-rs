@@ -389,7 +389,7 @@ fn add_trace_point(
         commands.spawn_bundle(GeometryBuilder::build_as(
             &trace_point_shape,
             // ShapeColors::new(Color::DARK_GREEN),
-            DrawMode::Fill(FillMode::color(Color::DARK_GREEN)),
+            DrawMode::Fill(FillMode::color(Color::RED)),
             Transform::from_xyz(scaled.x, scaled.y, 0.0),
         )).insert(HistoryTracePoint);
 
