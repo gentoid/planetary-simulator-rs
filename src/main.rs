@@ -357,12 +357,48 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
         view_scale.0,
     );
 
-    add_planet(
+    commands = add_planet(
         commands,
         Name("Mars".to_string()),
         Position(Vec2::new(0.0, -249.232e9)),
         Velocity(Vec2::new(22.0e3, 0.0)),
         Mass(6.4171e23),
+        view_scale.0,
+    );
+
+    commands = add_planet(
+        commands,
+        Name("Jupiter".to_string()),
+        Position(Vec2::new(816.5208e9, 0.0)),
+        Velocity(Vec2::new(0.0, 12.0e3)),
+        Mass(1.8986e27),
+        view_scale.0,
+    );
+
+    commands = add_planet(
+        commands,
+        Name("Saturn".to_string()),
+        Position(Vec2::new(0.0, 1513.325783e9)),
+        Velocity(Vec2::new(-9.0e3, 0.0)),
+        Mass(5.6846e26),
+        view_scale.0,
+    );
+
+    commands = add_planet(
+        commands,
+        Name("Uranus".to_string()),
+        Position(Vec2::new(-3004.419704e9, 0.0)),
+        Velocity(Vec2::new(0.0, -6.0e3)),
+        Mass(8.6813e25),
+        view_scale.0,
+    );
+
+    add_planet(
+        commands,
+        Name("Neptune".to_string()),
+        Position(Vec2::new(0.0, -4553.946490e9)),
+        Velocity(Vec2::new(5.4e3, 0.0)),
+        Mass(8.6813e25),
         view_scale.0,
     );
 }
