@@ -8,8 +8,7 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Materials>()
             .add_plugin(toggle_switch::ToggleSwitchPlugin)
-            .add_startup_system(draw.system())
-            .add_system(track_traces_toggle.system());
+            .add_startup_system(draw.system());
     }
 }
 
@@ -55,15 +54,4 @@ fn draw(mut commands: Commands, ui_materials: Res<Materials>) {
             toggle_switch::ToggleState(false),
             &ui_materials.toggle_switch,
         ));
-}
-
-fn track_traces_toggle(
-    query: Query<
-        &toggle_switch::ToggleState,
-        (With<ShowTracesToggle>, Changed<toggle_switch::ToggleState>),
-    >,
-) {
-    for toggle_state in query.iter() {
-        info!("Show traces: {:?}", toggle_state);
-    }
 }

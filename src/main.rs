@@ -2,12 +2,12 @@ use std::ops::{AddAssign, DivAssign, Mul, MulAssign};
 
 use bevy::{core::FixedTimestep, input::mouse::MouseWheel, prelude::*};
 use bevy_prototype_lyon::prelude::*;
-use ui::{toggle_switch::ToggleState, AddSunToggle};
+use ui::{toggle_switch::ToggleState, AddSunToggle, ShowTracesToggle};
 
 pub mod ui;
 
 const CALCULATE_TIME_STEP: f32 = 0.005;
-const DRAW_TIME_STEP: f32 = CALCULATE_TIME_STEP * 120.0;
+const DRAW_TIME_STEP: f32 = CALCULATE_TIME_STEP * 24.0;
 
 fn main() {
     App::new()
@@ -35,6 +35,7 @@ fn main() {
                 .with_system(update_trace_point.system().after("add_trace_point")),
         )
         .add_system(add_remove_sun.system())
+        .add_system(add_remove_traces.system())
         .run();
 }
 
@@ -47,7 +48,7 @@ struct ScaleRuler {
     length: f32,
 }
 
-#[derive(Clone, Component)]
+#[derive(Clone, Component, Debug)]
 struct Position(Vec2);
 
 #[derive(Clone, Component)]
@@ -68,11 +69,14 @@ struct Mass(f32);
 #[derive(Component)]
 struct Diameter(f32);
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct TracePoint {
     position: Vec3,
     drawn: bool,
 }
+
+#[derive(Component)]
+struct HistoryTracePoint;
 
 #[derive(Component)]
 struct ViewScale(f32);
@@ -101,7 +105,7 @@ const SCALE_CHANGE_BY: f32 = 1.3;
 const MIN_STAR_SIZE: f32 = 4.0;
 // const MIN_PLANET_SIZE: f32 = 2.0;
 
-#[derive(Clone, Component)]
+#[derive(Clone, Component, Debug)]
 struct Name(String);
 
 fn update_trace_point(mut query: Query<(&mut TracePoint, &Position)>) {
@@ -123,6 +127,37 @@ fn list_objects(query: Query<(&Name, &Position, &Velocity), With<Mass>>) {
         );
     }
     println!("======");
+}
+
+fn add_remove_traces(
+    mut commands: Commands,
+    toggle_query: Query<&ToggleState, (With<ShowTracesToggle>, Changed<ToggleState>)>,
+    query: Query<(Entity, &Position, Option<&TracePoint>), With<Mass>>,
+    history_points: Query<Entity, With<HistoryTracePoint>>,
+) {
+    if toggle_query.is_empty() {
+        return;
+    }
+
+    let turn_on = toggle_query.single().0;
+
+    if !turn_on {
+        history_points.for_each(|point_entity| commands.entity(point_entity).despawn());
+    }
+
+    for (entity, position, trace_point) in query.iter() {
+        let mut entity = commands.entity(entity);
+
+        match (trace_point, turn_on) {
+            (Some(_), false) => {
+                entity.remove::<TracePoint>();
+            }
+            (None, true) => {
+                entity.insert(TracePoint::new(position.clone()));
+            }
+            _ => {}
+        };
+    }
 }
 
 fn add_remove_sun(
@@ -302,7 +337,6 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
         Velocity(Vec2::new(0.0, 38.7e3)),
         Mass(3.285e23),
         view_scale.0,
-        false,
     );
 
     commands = add_planet(
@@ -312,7 +346,6 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
         Velocity(Vec2::new(0.0, -35.0e3)),
         Mass(4.867e24),
         view_scale.0,
-        false,
     );
 
     commands = add_planet(
@@ -322,7 +355,6 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
         Velocity(Vec2::new(-29.4e3, 0.0)),
         Mass(5.9722e24),
         view_scale.0,
-        false,
     );
 
     add_planet(
@@ -332,7 +364,6 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
         Velocity(Vec2::new(22.0e3, 0.0)),
         Mass(6.4171e23),
         view_scale.0,
-        false,
     );
 }
 
@@ -360,7 +391,7 @@ fn add_trace_point(
             // ShapeColors::new(Color::DARK_GREEN),
             DrawMode::Fill(FillMode::color(Color::DARK_GREEN)),
             Transform::from_xyz(scaled.x, scaled.y, 0.0),
-        ));
+        )).insert(HistoryTracePoint);
 
         trace.drawn = true;
     }
@@ -373,7 +404,6 @@ fn add_planet<'w, 's>(
     velocity: Velocity,
     mass: Mass,
     view_scale: f32,
-    add_trace: bool,
 ) -> Commands<'w, 's> {
     let shape = shapes::Circle {
         radius: 2.0,
@@ -381,7 +411,7 @@ fn add_planet<'w, 's>(
     };
     let scaled_position = position.0.mul(view_scale);
 
-    let entity = commands
+    commands
         .spawn_bundle(GeometryBuilder::build_as(
             &shape,
             // ShapeColors::new(Color::BLACK),
@@ -392,12 +422,7 @@ fn add_planet<'w, 's>(
         .insert(name)
         .insert(position.clone())
         .insert(velocity)
-        .insert(mass)
-        .id();
-
-    if add_trace {
-        commands.entity(entity).insert(TracePoint::new(position));
-    }
+        .insert(mass);
 
     commands
 }
@@ -424,8 +449,7 @@ fn add_sun<'w, 's>(mut commands: Commands<'w, 's>, view_scale: &ViewScale) -> Co
         .insert(sun_position.clone())
         .insert(Velocity(Vec2::new(0.0, 0.0)))
         .insert(Mass(1.989e30))
-        .insert(Diameter(sun_diameter))
-        .insert(TracePoint::new(sun_position));
+        .insert(Diameter(sun_diameter));
 
     commands
 }
