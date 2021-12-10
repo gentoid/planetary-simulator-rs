@@ -245,7 +245,7 @@ fn update_scale_line(view_scale: Res<ViewScale>, mut query: Query<&mut ScaleRule
 fn set_init_sun_velocity(
     mut commands: Commands,
     mut query: QuerySet<(
-        QueryState<(Entity, &mut Velocity), With<SetInitVelocity>>,
+        QueryState<(Entity, &mut Velocity, &Mass), With<SetInitVelocity>>,
         QueryState<(&Mass, &Velocity)>,
     )>,
 ) {
@@ -254,18 +254,17 @@ fn set_init_sun_velocity(
     }
 
     let mut mass_velocity: Vec2 = Vec2::new(0.0, 0.0);
-    let mut total_mass = 0.0;
 
     for (mass, velocity) in query.q1().iter() {
         mass_velocity = mass_velocity + mass.0 * velocity.0;
-        total_mass = total_mass + mass.0;
     }
 
-    let init_velocity = mass_velocity.mul(-1.0) / total_mass;
+    let mut query0 = query.q0();
+    let (entity, mut velocity, mass) = query0.single_mut();
+
+    let init_velocity = mass_velocity / -mass.0;
     println!("Set init velocity to: {}", init_velocity);
 
-    let mut query0 = query.q0();
-    let (entity, mut velocity) = query0.single_mut();
     velocity.0 = init_velocity;
     commands.entity(entity).remove::<SetInitVelocity>();
 }
