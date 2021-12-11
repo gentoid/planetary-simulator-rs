@@ -6,8 +6,8 @@ use ui::{toggle_switch::ToggleState, AddSunToggle, ShowTracesToggle};
 
 pub mod ui;
 
-const CALCULATE_TIME_STEP: f32 = 0.005;
-const DRAW_TIME_STEP: f32 = CALCULATE_TIME_STEP * 24.0;
+const CALCULATE_TIME_STEP: f32 = 0.001;
+const DRAW_TIME_STEP: f32 = CALCULATE_TIME_STEP * 240.0;
 
 fn main() {
     App::new()
@@ -15,6 +15,7 @@ fn main() {
         .add_plugin(ShapePlugin)
         .add_plugin(ui::UiPlugin)
         .init_resource::<ViewScale>()
+        .add_event::<NewTracePointDrawn>()
         .add_startup_system(setup.system())
         .add_system_to_stage(CoreStage::PreUpdate, set_init_sun_velocity.system())
         .add_system(zoom_view.system().label("zoom view"))
@@ -29,13 +30,11 @@ fn main() {
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(DRAW_TIME_STEP as f64))
                 // .with_system(list_objects.system().label("list"))
-                .with_system(
-                    add_trace_point.system().label("add_trace_point"), // .after("list"),
-                )
-                .with_system(update_trace_point.system().after("add_trace_point")),
+                .with_system(draw_trace_point.system()),
         )
         .add_system(add_remove_sun.system())
         .add_system(add_remove_traces.system())
+        .add_system(on_new_trace_point.system())
         .run();
 }
 
@@ -70,13 +69,39 @@ struct Mass(f32);
 struct Diameter(f32);
 
 #[derive(Component, Debug)]
-struct TracePoint {
-    position: Vec3,
-    drawn: bool,
+struct TraceLine {
+    pub points: Vec<Entity>,
+    draw: bool,
 }
 
-#[derive(Component)]
-struct HistoryTracePoint;
+impl Default for TraceLine {
+    fn default() -> Self {
+        Self {
+            points: Vec::with_capacity(100),
+            draw: false,
+        }
+    }
+}
+
+impl TraceLine {
+    fn add(&mut self, point_entity: Entity) -> Vec<Entity> {
+        let mut removed = vec![];
+
+        self.points.push(point_entity);
+
+        while self.points.len() >= 100 {
+            removed.push(self.points.remove(0));
+        }
+
+        removed
+    }
+}
+
+#[derive(Debug)]
+struct NewTracePointDrawn {
+    object_entity: Entity,
+    point_entity: Entity,
+}
 
 #[derive(Component)]
 struct ViewScale(f32);
@@ -84,15 +109,6 @@ struct ViewScale(f32);
 impl Default for ViewScale {
     fn default() -> Self {
         Self(INIT_SCALE)
-    }
-}
-
-impl TracePoint {
-    fn new(position: Position) -> Self {
-        Self {
-            position: position.0.extend(100.0),
-            drawn: false,
-        }
     }
 }
 
@@ -107,13 +123,6 @@ const MIN_STAR_SIZE: f32 = 4.0;
 
 #[derive(Clone, Component, Debug)]
 struct Name(String);
-
-fn update_trace_point(mut query: Query<(&mut TracePoint, &Position)>) {
-    for (mut trace_point, position) in query.iter_mut() {
-        trace_point.position = position.0.extend(trace_point.position.z);
-        trace_point.drawn = false;
-    }
-}
 
 #[allow(unused)]
 fn list_objects(query: Query<(&Name, &Position, &Velocity), With<Mass>>) {
@@ -132,8 +141,7 @@ fn list_objects(query: Query<(&Name, &Position, &Velocity), With<Mass>>) {
 fn add_remove_traces(
     mut commands: Commands,
     toggle_query: Query<&ToggleState, (With<ShowTracesToggle>, Changed<ToggleState>)>,
-    query: Query<(Entity, &Position, Option<&TracePoint>), With<Mass>>,
-    history_points: Query<Entity, With<HistoryTracePoint>>,
+    mut query: Query<&mut TraceLine>,
 ) {
     if toggle_query.is_empty() {
         return;
@@ -141,22 +149,17 @@ fn add_remove_traces(
 
     let turn_on = toggle_query.single().0;
 
-    if !turn_on {
-        history_points.for_each(|point_entity| commands.entity(point_entity).despawn());
-    }
+    for mut trace in query.iter_mut() {
+        trace.draw = turn_on;
 
-    for (entity, position, trace_point) in query.iter() {
-        let mut entity = commands.entity(entity);
+        if turn_on {
+            continue;
+        }
 
-        match (trace_point, turn_on) {
-            (Some(_), false) => {
-                entity.remove::<TracePoint>();
-            }
-            (None, true) => {
-                entity.insert(TracePoint::new(position.clone()));
-            }
-            _ => {}
-        };
+        while trace.points.len() > 0 {
+            let point_entity = trace.points.remove(0);
+            commands.entity(point_entity).despawn();
+        }
     }
 }
 
@@ -402,33 +405,52 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
     );
 }
 
-fn add_trace_point(
+fn draw_trace_point(
     mut commands: Commands,
     view_scale: Res<ViewScale>,
-    mut query: Query<&mut TracePoint>,
+    mut new_trace_point_event: EventWriter<NewTracePointDrawn>,
+    mut query: Query<(Entity, &Position, &TraceLine)>,
 ) {
     let trace_point_shape = shapes::Circle {
         radius: 1.0,
         center: Vec2::new(0.0, 0.0),
     };
-    for mut trace in query.iter_mut() {
-        if trace.drawn {
+    for (object_entity, position, trace) in query.iter_mut() {
+        if !trace.draw {
             continue;
         }
 
-        let scaled = trace
-            .position
-            .truncate()
-            .mul(view_scale.0)
-            .extend(trace.position.z);
-        commands.spawn_bundle(GeometryBuilder::build_as(
-            &trace_point_shape,
-            // ShapeColors::new(Color::DARK_GREEN),
-            DrawMode::Fill(FillMode::color(Color::RED)),
-            Transform::from_xyz(scaled.x, scaled.y, 0.0),
-        )).insert(HistoryTracePoint);
+        let scaled = position.0.mul(view_scale.0);
 
-        trace.drawn = true;
+        let point_entity = commands
+            .spawn_bundle(GeometryBuilder::build_as(
+                &trace_point_shape,
+                // ShapeColors::new(Color::DARK_GREEN),
+                DrawMode::Fill(FillMode::color(Color::RED)),
+                Transform::from_xyz(scaled.x, scaled.y, 0.0),
+            ))
+            .id();
+
+        new_trace_point_event.send(NewTracePointDrawn {
+            object_entity,
+            point_entity,
+        });
+    }
+}
+
+fn on_new_trace_point(
+    mut commands: Commands,
+    mut new_trace_point_event: EventReader<NewTracePointDrawn>,
+    mut query: Query<(Entity, &mut TraceLine)>,
+) {
+    for event in new_trace_point_event.iter() {
+        for (entity, mut trace) in query.iter_mut() {
+            if entity == event.object_entity {
+                for point_entity in trace.add(event.point_entity).into_iter() {
+                    commands.entity(point_entity).despawn();
+                }
+            }
+        }
     }
 }
 
@@ -453,6 +475,7 @@ fn add_planet<'w, 's>(
             DrawMode::Fill(FillMode::color(Color::BLACK)),
             Transform::from_xyz(scaled_position.x, scaled_position.y, 0.0),
         ))
+        .insert(TraceLine::default())
         .insert(Planet)
         .insert(name)
         .insert(position.clone())
@@ -478,6 +501,7 @@ fn add_sun<'w, 's>(mut commands: Commands<'w, 's>, view_scale: &ViewScale) -> Co
             DrawMode::Fill(FillMode::color(Color::YELLOW)),
             Transform::default(),
         ))
+        .insert(TraceLine::default())
         .insert(Star)
         .insert(SetInitVelocity)
         .insert(Name("Sun".to_string()))
