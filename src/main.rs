@@ -21,6 +21,7 @@ fn main() {
         .add_system(zoom_view.system().label("zoom view"))
         .add_system(scale_object_sizes.system().after("zoom view"))
         .add_system(update_scale_line.system().after("zoom view"))
+        .add_system(zoom_trace_lines.system().after("zoom view"))
         .add_system(
             calculate_new_state
                 .system()
@@ -96,6 +97,9 @@ impl TraceLine {
         removed
     }
 }
+
+#[derive(Component)]
+struct TracePoint;
 
 #[derive(Debug)]
 struct NewTracePointDrawn {
@@ -193,6 +197,19 @@ fn zoom_view(mut scroll_event: EventReader<MouseWheel>, mut view_scale: ResMut<V
         } else if event.y.is_sign_positive() {
             view_scale.0.div_assign(change_by);
         }
+    }
+}
+
+fn zoom_trace_lines(
+    view_scale: Res<ViewScale>,
+    mut query: Query<(&mut Transform, &Position), With<TracePoint>>,
+) {
+    if !view_scale.is_changed() {
+        return;
+    }
+
+    for (mut transform, position) in query.iter_mut() {
+        transform.translation = (position.0.mul(view_scale.0), transform.translation.z).into();
     }
 }
 
@@ -429,6 +446,8 @@ fn draw_trace_point(
                 DrawMode::Fill(FillMode::color(Color::RED)),
                 Transform::from_xyz(scaled.x, scaled.y, 0.0),
             ))
+            .insert(TracePoint)
+            .insert(position.clone())
             .id();
 
         new_trace_point_event.send(NewTracePointDrawn {
