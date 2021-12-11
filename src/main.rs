@@ -16,8 +16,9 @@ fn main() {
         .add_plugin(ui::UiPlugin)
         .init_resource::<ViewScale>()
         .add_event::<NewTracePointDrawn>()
+        .add_event::<NeedToAdjustSunVelocity>()
         .add_startup_system(setup.system())
-        .add_system_to_stage(CoreStage::PreUpdate, set_init_sun_velocity.system())
+        .add_system_to_stage(CoreStage::PreUpdate, adjust_sun_velocity.system())
         .add_system(zoom_view.system().label("zoom view"))
         .add_system(scale_object_sizes.system().after("zoom view"))
         .add_system(update_scale_line.system().after("zoom view"))
@@ -60,8 +61,16 @@ struct Star;
 #[derive(Component)]
 struct Planet;
 
-#[derive(Component)]
-struct SetInitVelocity;
+enum SystemChanged {
+    BodyAdded,
+    BodyRemoved,
+}
+
+struct NeedToAdjustSunVelocity {
+    change: SystemChanged,
+    mass: Mass,
+    velocity: Velocity,
+}
 
 #[derive(Clone, Component)]
 struct Mass(f32);
@@ -262,31 +271,28 @@ fn update_scale_line(view_scale: Res<ViewScale>, mut query: Query<&mut ScaleRule
     }
 }
 
-fn set_init_sun_velocity(
-    mut commands: Commands,
-    mut query: QuerySet<(
-        QueryState<(Entity, &mut Velocity, &Mass), With<SetInitVelocity>>,
-        QueryState<(&Mass, &Velocity)>,
-    )>,
+fn adjust_sun_velocity(
+    mut adjust_sun_velocity_event: EventReader<NeedToAdjustSunVelocity>,
+    mut query: Query<(&mut Velocity, &Mass), With<Star>>,
 ) {
-    if query.q0().iter_mut().count() == 0 {
+    if query.is_empty() {
         return;
     }
 
-    let mut mass_velocity: Vec2 = Vec2::new(0.0, 0.0);
+    let (mut velocity, mass) = query.single_mut();
 
-    for (mass, velocity) in query.q1().iter() {
-        mass_velocity = mass_velocity + mass.0 * velocity.0;
+    for event in adjust_sun_velocity_event.iter() {
+        let velocity_diff = event.velocity.0 * event.mass.0 / mass.0;
+
+        let sign = match event.change {
+            SystemChanged::BodyAdded => -1.0,
+            SystemChanged::BodyRemoved => 1.0,
+        };
+
+        info!("Sun's velocity adjusted: {:?}", sign * velocity_diff);
+
+        velocity.0.add_assign(sign * velocity_diff);
     }
-
-    let mut query0 = query.q0();
-    let (entity, mut velocity, mass) = query0.single_mut();
-
-    let init_velocity = mass_velocity / -mass.0;
-    println!("Set init velocity to: {}", init_velocity);
-
-    velocity.0 = init_velocity;
-    commands.entity(entity).remove::<SetInitVelocity>();
 }
 
 fn calculate_new_state(
@@ -337,7 +343,11 @@ fn calculate_new_state(
     // println!("------");
 }
 
-fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
+fn setup(
+    mut commands: Commands,
+    view_scale: Res<ViewScale>,
+    mut adjust_sun_velocity_event: EventWriter<NeedToAdjustSunVelocity>,
+) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(UiCameraBundle::default());
 
@@ -349,77 +359,84 @@ fn setup(mut commands: Commands, view_scale: Res<ViewScale>) {
 
     commands = add_sun(commands, &view_scale);
 
-    commands = add_planet(
-        commands,
-        Name("Mercury".to_string()),
-        Position(Vec2::new(69.817445e9, 0.0)),
-        Velocity(Vec2::new(0.0, 38.7e3)),
-        Mass(3.285e23),
-        view_scale.0,
-    );
+    let planets_data = [
+        (
+            Name("Mercury".to_string()),
+            Position(Vec2::new(69.817445e9, 0.0)),
+            Velocity(Vec2::new(0.0, 38.7e3)),
+            Mass(3.285e23),
+        ),
+        (
+            Name("Venus".to_string()),
+            Position(Vec2::new(-108e9, 0.0)),
+            Velocity(Vec2::new(0.0, -35.0e3)),
+            Mass(4.867e24),
+        ),
+        (
+            Name("Earth".to_string()),
+            Position(Vec2::new(0.0, 152.098232e9)),
+            Velocity(Vec2::new(-29.4e3, 0.0)),
+            Mass(5.9722e24),
+        ),
+        (
+            Name("Mars".to_string()),
+            Position(Vec2::new(0.0, -249.232e9)),
+            Velocity(Vec2::new(22.0e3, 0.0)),
+            Mass(6.4171e23),
+        ),
+        (
+            Name("Jupiter".to_string()),
+            Position(Vec2::new(816.5208e9, 0.0)),
+            Velocity(Vec2::new(0.0, 12.0e3)),
+            Mass(1.8986e27),
+        ),
+        (
+            Name("Saturn".to_string()),
+            Position(Vec2::new(0.0, 1513.325783e9)),
+            Velocity(Vec2::new(-9.0e3, 0.0)),
+            Mass(5.6846e26),
+        ),
+        (
+            Name("Uranus".to_string()),
+            Position(Vec2::new(-3004.419704e9, 0.0)),
+            Velocity(Vec2::new(0.0, -6.0e3)),
+            Mass(8.6813e25),
+        ),
+        (
+            Name("Neptune".to_string()),
+            Position(Vec2::new(0.0, -4553.946490e9)),
+            Velocity(Vec2::new(5.4e3, 0.0)),
+            Mass(8.6813e25),
+        ),
+    ];
 
-    commands = add_planet(
-        commands,
-        Name("Venus".to_string()),
-        Position(Vec2::new(-108e9, 0.0)),
-        Velocity(Vec2::new(0.0, -35.0e3)),
-        Mass(4.867e24),
-        view_scale.0,
-    );
+    let shape = shapes::Circle {
+        radius: 2.0,
+        center: Vec2::new(0.0, 0.0),
+    };
 
-    commands = add_planet(
-        commands,
-        Name("Earth".to_string()),
-        Position(Vec2::new(0.0, 152.098232e9)),
-        Velocity(Vec2::new(-29.4e3, 0.0)),
-        Mass(5.9722e24),
-        view_scale.0,
-    );
+    for (name, position, velocity, mass) in planets_data.into_iter() {
+        let scaled_position = position.0 * view_scale.0;
 
-    commands = add_planet(
-        commands,
-        Name("Mars".to_string()),
-        Position(Vec2::new(0.0, -249.232e9)),
-        Velocity(Vec2::new(22.0e3, 0.0)),
-        Mass(6.4171e23),
-        view_scale.0,
-    );
+        commands
+            .spawn_bundle(GeometryBuilder::build_as(
+                &shape,
+                DrawMode::Fill(FillMode::color(Color::BLACK)),
+                Transform::from_translation(scaled_position.extend(50.0)),
+            ))
+            .insert(TraceLine::default())
+            .insert(Planet)
+            .insert(name)
+            .insert(position)
+            .insert(velocity.clone())
+            .insert(mass.clone());
 
-    commands = add_planet(
-        commands,
-        Name("Jupiter".to_string()),
-        Position(Vec2::new(816.5208e9, 0.0)),
-        Velocity(Vec2::new(0.0, 12.0e3)),
-        Mass(1.8986e27),
-        view_scale.0,
-    );
-
-    commands = add_planet(
-        commands,
-        Name("Saturn".to_string()),
-        Position(Vec2::new(0.0, 1513.325783e9)),
-        Velocity(Vec2::new(-9.0e3, 0.0)),
-        Mass(5.6846e26),
-        view_scale.0,
-    );
-
-    commands = add_planet(
-        commands,
-        Name("Uranus".to_string()),
-        Position(Vec2::new(-3004.419704e9, 0.0)),
-        Velocity(Vec2::new(0.0, -6.0e3)),
-        Mass(8.6813e25),
-        view_scale.0,
-    );
-
-    add_planet(
-        commands,
-        Name("Neptune".to_string()),
-        Position(Vec2::new(0.0, -4553.946490e9)),
-        Velocity(Vec2::new(5.4e3, 0.0)),
-        Mass(8.6813e25),
-        view_scale.0,
-    );
+        adjust_sun_velocity_event.send(NeedToAdjustSunVelocity {
+            change: SystemChanged::BodyAdded,
+            velocity,
+            mass,
+        });
+    }
 }
 
 fn draw_trace_point(
@@ -473,37 +490,6 @@ fn on_new_trace_point(
     }
 }
 
-fn add_planet<'w, 's>(
-    mut commands: Commands<'w, 's>,
-    name: Name,
-    position: Position,
-    velocity: Velocity,
-    mass: Mass,
-    view_scale: f32,
-) -> Commands<'w, 's> {
-    let shape = shapes::Circle {
-        radius: 2.0,
-        center: Vec2::new(0.0, 0.0),
-    };
-    let scaled_position = position.0.mul(view_scale);
-
-    commands
-        .spawn_bundle(GeometryBuilder::build_as(
-            &shape,
-            // ShapeColors::new(Color::BLACK),
-            DrawMode::Fill(FillMode::color(Color::BLACK)),
-            Transform::from_xyz(scaled_position.x, scaled_position.y, 50.0),
-        ))
-        .insert(TraceLine::default())
-        .insert(Planet)
-        .insert(name)
-        .insert(position.clone())
-        .insert(velocity)
-        .insert(mass);
-
-    commands
-}
-
 fn add_sun<'w, 's>(mut commands: Commands<'w, 's>, view_scale: &ViewScale) -> Commands<'w, 's> {
     let sun_position = Position(Vec2::new(0.0, 0.0));
     let sun_diameter = 1.39268e9;
@@ -522,10 +508,9 @@ fn add_sun<'w, 's>(mut commands: Commands<'w, 's>, view_scale: &ViewScale) -> Co
         ))
         .insert(TraceLine::default())
         .insert(Star)
-        .insert(SetInitVelocity)
         .insert(Name("Sun".to_string()))
         .insert(sun_position.clone())
-        .insert(Velocity(Vec2::new(0.0, -10.0)))
+        .insert(Velocity(Vec2::new(0.0, 0.0)))
         .insert(Mass(1.989e30))
         .insert(Diameter(sun_diameter));
 
