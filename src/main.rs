@@ -331,7 +331,7 @@ fn calculate_new_state(
             // );
         }
         position.0.add_assign(velocity.0 * TIME_INTERVAL);
-        transform.translation = (position.0.mul(view_scale.0), 0.0).into();
+        transform.translation = (position.0.mul(view_scale.0), transform.translation.z).into();
         // println!("{} ({:?}) => [{:?}]", name.0, position.0, velocity.0);
     }
     // println!("------");
@@ -492,7 +492,7 @@ fn add_planet<'w, 's>(
             &shape,
             // ShapeColors::new(Color::BLACK),
             DrawMode::Fill(FillMode::color(Color::BLACK)),
-            Transform::from_xyz(scaled_position.x, scaled_position.y, 0.0),
+            Transform::from_xyz(scaled_position.x, scaled_position.y, 50.0),
         ))
         .insert(TraceLine::default())
         .insert(Planet)
@@ -525,7 +525,7 @@ fn add_sun<'w, 's>(mut commands: Commands<'w, 's>, view_scale: &ViewScale) -> Co
         .insert(SetInitVelocity)
         .insert(Name("Sun".to_string()))
         .insert(sun_position.clone())
-        .insert(Velocity(Vec2::new(0.0, 0.0)))
+        .insert(Velocity(Vec2::new(0.0, -10.0)))
         .insert(Mass(1.989e30))
         .insert(Diameter(sun_diameter));
 
