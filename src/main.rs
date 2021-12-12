@@ -50,10 +50,10 @@ struct ScaleRuler {
 }
 
 #[derive(Clone, Component, Debug)]
-struct Position(Vec2);
+struct Position(Vec3);
 
 #[derive(Clone, Component)]
-struct Velocity(Vec2);
+struct Velocity(Vec3);
 
 #[derive(Component)]
 struct Star;
@@ -127,7 +127,7 @@ impl Default for ViewScale {
 
 const G: f32 = 6.67e-11;
 const TIME_INTERVAL: f32 = 3600.0;
-const ZERO_ANGLE: Vec2 = Vec2::X;
+const ZERO_ANGLE: Vec3 = Vec3::X;
 const INIT_SCALE: f32 = 500.0 / 260e9;
 const SCALE_CHANGE_BY: f32 = 1.3;
 
@@ -218,7 +218,11 @@ fn zoom_trace_lines(
     }
 
     for (mut transform, position) in query.iter_mut() {
-        transform.translation = (position.0.mul(view_scale.0), transform.translation.z).into();
+        transform.translation = (
+            position.0.mul(view_scale.0).truncate(),
+            transform.translation.z,
+        )
+            .into();
     }
 }
 
@@ -323,11 +327,14 @@ fn calculate_new_state(
 
             // let force = G *  mass.0 * other_mass.0 / square_distance(&position, other_position);
             let acceleration = G * other_mass.0 / position.0.distance_squared(other_position.0);
-            let angle = ZERO_ANGLE.angle_between(other_position.0 - position.0);
+            let angle = ZERO_ANGLE
+                .truncate()
+                .angle_between((other_position.0 - position.0).truncate());
             let velocity_diff_length = acceleration * TIME_INTERVAL;
-            let velocity_diff = Vec2::new(
+            let velocity_diff = Vec3::new(
                 velocity_diff_length * angle.cos(),
                 velocity_diff_length * angle.sin(),
+                0.0,
             );
             velocity.0.add_assign(velocity_diff);
 
@@ -337,7 +344,11 @@ fn calculate_new_state(
             // );
         }
         position.0.add_assign(velocity.0 * TIME_INTERVAL);
-        transform.translation = (position.0.mul(view_scale.0), transform.translation.z).into();
+        transform.translation = (
+            position.0.mul(view_scale.0).truncate(),
+            transform.translation.z,
+        )
+            .into();
         // println!("{} ({:?}) => [{:?}]", name.0, position.0, velocity.0);
     }
     // println!("------");
@@ -362,50 +373,50 @@ fn setup(
     let planets_data = [
         (
             Name("Mercury".to_string()),
-            Position(Vec2::new(69.817445e9, 0.0)),
-            Velocity(Vec2::new(0.0, 38.7e3)),
+            Position(Vec3::new(69.817445e9, 0.0, 0.0)),
+            Velocity(Vec3::new(0.0, 38.7e3, 0.0)),
             Mass(3.285e23),
         ),
         (
             Name("Venus".to_string()),
-            Position(Vec2::new(-108e9, 0.0)),
-            Velocity(Vec2::new(0.0, -35.0e3)),
+            Position(Vec3::new(-108e9, 0.0, 0.0)),
+            Velocity(Vec3::new(0.0, -35.0e3, 0.0)),
             Mass(4.867e24),
         ),
         (
             Name("Earth".to_string()),
-            Position(Vec2::new(0.0, 152.098232e9)),
-            Velocity(Vec2::new(-29.4e3, 0.0)),
+            Position(Vec3::new(0.0, 152.098232e9, 0.0)),
+            Velocity(Vec3::new(-29.4e3, 0.0, 0.0)),
             Mass(5.9722e24),
         ),
         (
             Name("Mars".to_string()),
-            Position(Vec2::new(0.0, -249.232e9)),
-            Velocity(Vec2::new(22.0e3, 0.0)),
+            Position(Vec3::new(0.0, -249.232e9, 0.0)),
+            Velocity(Vec3::new(22.0e3, 0.0, 0.0)),
             Mass(6.4171e23),
         ),
         (
             Name("Jupiter".to_string()),
-            Position(Vec2::new(816.5208e9, 0.0)),
-            Velocity(Vec2::new(0.0, 12.0e3)),
+            Position(Vec3::new(816.5208e9, 0.0, 0.0)),
+            Velocity(Vec3::new(0.0, 12.0e3, 0.0)),
             Mass(1.8986e27),
         ),
         (
             Name("Saturn".to_string()),
-            Position(Vec2::new(0.0, 1513.325783e9)),
-            Velocity(Vec2::new(-9.0e3, 0.0)),
+            Position(Vec3::new(0.0, 1513.325783e9, 0.0)),
+            Velocity(Vec3::new(-9.0e3, 0.0, 0.0)),
             Mass(5.6846e26),
         ),
         (
             Name("Uranus".to_string()),
-            Position(Vec2::new(-3004.419704e9, 0.0)),
-            Velocity(Vec2::new(0.0, -6.0e3)),
+            Position(Vec3::new(-3004.419704e9, 0.0, 0.0)),
+            Velocity(Vec3::new(0.0, -6.0e3, 0.0)),
             Mass(8.6813e25),
         ),
         (
             Name("Neptune".to_string()),
-            Position(Vec2::new(0.0, -4553.946490e9)),
-            Velocity(Vec2::new(5.4e3, 0.0)),
+            Position(Vec3::new(0.0, -4553.946490e9, 0.0)),
+            Velocity(Vec3::new(5.4e3, 0.0, 0.0)),
             Mass(8.6813e25),
         ),
     ];
@@ -422,7 +433,7 @@ fn setup(
             .spawn_bundle(GeometryBuilder::build_as(
                 &shape,
                 DrawMode::Fill(FillMode::color(Color::BLACK)),
-                Transform::from_translation(scaled_position.extend(50.0)),
+                Transform::from_xyz(scaled_position.x, scaled_position.y, 50.0),
             ))
             .insert(TraceLine::default())
             .insert(Planet)
@@ -491,7 +502,7 @@ fn on_new_trace_point(
 }
 
 fn add_sun<'w, 's>(mut commands: Commands<'w, 's>, view_scale: &ViewScale) -> Commands<'w, 's> {
-    let sun_position = Position(Vec2::new(0.0, 0.0));
+    let sun_position = Position(Vec3::new(0.0, 0.0, 0.0));
     let sun_diameter = 1.39268e9;
 
     let sun_circle = shapes::Circle {
@@ -510,7 +521,7 @@ fn add_sun<'w, 's>(mut commands: Commands<'w, 's>, view_scale: &ViewScale) -> Co
         .insert(Star)
         .insert(Name("Sun".to_string()))
         .insert(sun_position.clone())
-        .insert(Velocity(Vec2::new(0.0, 0.0)))
+        .insert(Velocity(Vec3::new(0.0, 0.0, 0.0)))
         .insert(Mass(1.989e30))
         .insert(Diameter(sun_diameter));
 
