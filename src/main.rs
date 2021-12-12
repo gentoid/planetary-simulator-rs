@@ -1,4 +1,4 @@
-use std::ops::{AddAssign, DivAssign, Mul, MulAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub};
 
 use bevy::{core::FixedTimestep, input::mouse::MouseWheel, prelude::*};
 use bevy_prototype_lyon::prelude::*;
@@ -31,6 +31,7 @@ fn main() {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(DRAW_TIME_STEP as f64))
+                .with_system(set_baricenters.system())
                 // .with_system(list_objects.system().label("list"))
                 .with_system(draw_trace_point.system()),
         )
@@ -49,11 +50,158 @@ struct ScaleRuler {
     length: f32,
 }
 
-#[derive(Clone, Component, Debug)]
+#[derive(Debug)]
+struct Eccentricity(Vec3);
+
+struct PositionUnit(Vec3);
+
+impl Sub<EccentricityRightPart> for PositionUnit {
+    type Output = Eccentricity;
+
+    fn sub(self, rhs: EccentricityRightPart) -> Self::Output {
+        Eccentricity(self.0 - rhs.0)
+    }
+}
+
+struct EccentricityRightPart(Vec3);
+
+struct GravitationalParam(f32);
+
+impl Default for GravitationalParam {
+    fn default() -> Self {
+        Self(SUN_SGP)
+    }
+}
+
+struct VectorCrossAngularMomentum(Vec3);
+
+struct AngularMomentum(Vec3);
+
+struct Length(f32);
+
+#[derive(Clone, Component, Debug, Default)]
 struct Position(Vec3);
+
+impl Position {
+    fn cross(&self, velocity: &Velocity) -> AngularMomentum {
+        AngularMomentum(self.0.cross(velocity.0))
+    }
+
+    fn length(&self) -> Length {
+        Length(self.0.length())
+    }
+}
+
+impl Sub for &Position {
+    type Output = Position;
+
+    fn sub(self, other: Self) -> Self::Output {
+        Position(self.0 - other.0)
+    }
+}
+
+impl Sub<Position> for &Position {
+    type Output = Position;
+
+    fn sub(self, other: Position) -> Self::Output {
+        Position(self.0 - other.0)
+    }
+}
+
+impl Sub<&Self> for Position {
+    type Output = Self;
+
+    fn sub(self, other: &Self) -> Self::Output {
+        Self(self.0 - other.0)
+    }
+}
+
+impl Sub<Self> for Position {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self::Output {
+        Self(self.0 - other.0)
+    }
+}
+
+impl Add for &Position {
+    type Output = Position;
+
+    fn add(self, other: Self) -> Self::Output {
+        Position(self.0 + other.0)
+    }
+}
+
+impl Add<&Self> for Position {
+    type Output = Self;
+
+    fn add(self, other: &Self) -> Self::Output {
+        Self(self.0 + other.0)
+    }
+}
+
+impl Mul<f32> for Position {
+    type Output = Self;
+
+    fn mul(self, other: f32) -> Self::Output {
+        Self(self.0 * other)
+    }
+}
+
+impl Div<f32> for Position {
+    type Output = Self;
+
+    fn div(self, other: f32) -> Self::Output {
+        Self(self.0 / other)
+    }
+}
+
+impl Div<Length> for Position {
+    type Output = PositionUnit;
+
+    fn div(self, other: Length) -> Self::Output {
+        PositionUnit(self.0 / other.0)
+    }
+}
+
+impl Mul<&Res<'_, ViewScale>> for Position {
+    type Output = Self;
+
+    fn mul(self, other: &Res<'_, ViewScale>) -> Self::Output {
+        Self(self.0 * other.0)
+    }
+}
+
+impl From<Position> for Vec3 {
+    fn from(position: Position) -> Self {
+        position.0
+    }
+}
 
 #[derive(Clone, Component)]
 struct Velocity(Vec3);
+
+impl Velocity {
+    fn cross(&self, angular_momentum: AngularMomentum) -> Velocity {
+        Velocity(self.0.cross(angular_momentum.0))
+    }
+}
+
+impl Sub for &Velocity {
+    type Output = Velocity;
+
+    fn sub(self, other: Self) -> Self::Output {
+        Velocity(self.0 - other.0)
+    }
+}
+
+impl Div<GravitationalParam> for Velocity {
+    type Output = EccentricityRightPart;
+
+    fn div(self, rhs: GravitationalParam) -> Self::Output {
+        EccentricityRightPart(self.0 / rhs.0)
+    }
+}
 
 #[derive(Component)]
 struct Star;
@@ -74,6 +222,49 @@ struct NeedToAdjustSunVelocity {
 
 #[derive(Clone, Component)]
 struct Mass(f32);
+
+impl Add for &Mass {
+    type Output = Mass;
+
+    fn add(self, other: Self) -> Self::Output {
+        Mass(self.0 + other.0)
+    }
+}
+
+impl Add for Mass {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        Self(self.0 + other.0)
+    }
+}
+
+impl Div for &Mass {
+    type Output = f32;
+
+    fn div(self, other: Self) -> Self::Output {
+        self.0 / other.0
+    }
+}
+
+#[derive(Clone, Component, Default)]
+struct BariCenter(Position);
+
+// impl Mul<ViewScale> for BariCenter {
+//     type Output = Self;
+
+//     fn mul(self, scale: ViewScale) -> Self::Output {
+//         Self(self.0 * scale)
+//     }
+// }
+
+impl Mul<&Res<'_, ViewScale>> for BariCenter {
+    type Output = Self;
+
+    fn mul(self, scale: &Res<'_, ViewScale>) -> Self::Output {
+        Self(self.0 * scale)
+    }
+}
 
 #[derive(Component)]
 struct Diameter(f32);
@@ -126,6 +317,7 @@ impl Default for ViewScale {
 }
 
 const G: f32 = 6.67e-11;
+const SUN_SGP: f32 = 1.32712440019e20; // Standard gravitational parameter
 const TIME_INTERVAL: f32 = 3600.0;
 const ZERO_ANGLE: Vec3 = Vec3::X;
 const INIT_SCALE: f32 = 500.0 / 260e9;
@@ -526,4 +718,86 @@ fn add_sun<'w, 's>(mut commands: Commands<'w, 's>, view_scale: &ViewScale) -> Co
         .insert(Diameter(sun_diameter));
 
     commands
+}
+
+#[derive(Component)]
+struct Orbit;
+
+// fn draw_baricenters(mut commands: Commands) {
+//     commands
+// }
+
+fn set_baricenters(
+    mut commands: Commands,
+    view_scale: Res<ViewScale>,
+    mut planets_query: Query<(&Name, &Position, &Velocity, &Mass), (With<Planet>, Without<Star>)>,
+    sun_query: Query<(&Position, &Velocity, &Mass), With<Star>>,
+    orbits_query: Query<Entity, With<Orbit>>,
+) {
+    if sun_query.is_empty() {
+        return;
+    }
+
+    orbits_query.for_each(|orbit| commands.entity(orbit).despawn());
+
+    let (sun_position, sun_velocity, sun_mass) = sun_query.single();
+
+    for (_, planet_position, planet_velocity, planet_mass) in planets_query.iter_mut() {
+        let distance_vector = planet_position - sun_position;
+
+        let baricenter = distance_vector * (planet_mass / &(sun_mass + planet_mass)) + sun_position;
+
+        let position_vector = planet_position - &baricenter;
+        let velocity_vector = planet_velocity - sun_velocity;
+        let distance = position_vector.length();
+        let velocity_squared = velocity_vector.0.length_squared();
+
+        let semi_major_axis_length =
+            SUN_SGP * distance.0 / (2.0 * SUN_SGP - distance.0 * velocity_squared);
+
+        let h = position_vector.cross(&velocity_vector); // specific angular momentum
+
+        let eccentricity_vector =
+            position_vector / distance - (velocity_vector.cross(h) / GravitationalParam::default());
+
+        let semi_minor_axis_length =
+            semi_major_axis_length * (1.0 - eccentricity_vector.0.length_squared()).sqrt();
+
+        let empty_focus = 2.0 * semi_major_axis_length * eccentricity_vector.0;
+
+        let center = (empty_focus - baricenter.0) / 2.0;
+
+        let ellipsis_angle = ZERO_ANGLE
+            .truncate()
+            .angle_between(eccentricity_vector.0.truncate());
+
+        let mut transform = Transform::from_translation(center * view_scale.0);
+        transform.rotate(Quat::from_rotation_z(ellipsis_angle));
+        commands
+            .spawn_bundle(GeometryBuilder::build_as(
+                &shapes::Ellipse {
+                    center: Vec2::default(),
+                    radii: Vec2::new(
+                        semi_major_axis_length * view_scale.0,
+                        semi_minor_axis_length * view_scale.0,
+                    ),
+                },
+                DrawMode::Stroke(StrokeMode::color(Color::INDIGO)),
+                transform,
+            ))
+            .insert(Orbit);
+
+        // commands.spawn_bundle(GeometryBuilder::build_as(
+        //     &shapes::Circle {
+        //         radius: 2.0,
+        //         center: Vec2::new(0.0, 0.0),
+        //     },
+        //     DrawMode::Fill(FillMode::color(Color::INDIGO)),
+        //     Transform::from_xyz(
+        //         empty_focus.x * view_scale.0,
+        //         empty_focus.y * view_scale.0,
+        //         10.0,
+        //     ),
+        // ));
+    }
 }
