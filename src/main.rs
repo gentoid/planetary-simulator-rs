@@ -50,47 +50,8 @@ struct ScaleRuler {
     length: f32,
 }
 
-#[derive(Debug)]
-struct Eccentricity(Vec3);
-
-struct PositionUnit(Vec3);
-
-impl Sub<EccentricityRightPart> for PositionUnit {
-    type Output = Eccentricity;
-
-    fn sub(self, rhs: EccentricityRightPart) -> Self::Output {
-        Eccentricity(self.0 - rhs.0)
-    }
-}
-
-struct EccentricityRightPart(Vec3);
-
-struct GravitationalParam(f32);
-
-impl Default for GravitationalParam {
-    fn default() -> Self {
-        Self(SUN_SGP)
-    }
-}
-
-struct VectorCrossAngularMomentum(Vec3);
-
-struct AngularMomentum(Vec3);
-
-struct Length(f32);
-
 #[derive(Clone, Component, Debug, Default)]
 struct Position(Vec3);
-
-impl Position {
-    fn cross(&self, velocity: &Velocity) -> AngularMomentum {
-        AngularMomentum(self.0.cross(velocity.0))
-    }
-
-    fn length(&self) -> Length {
-        Length(self.0.length())
-    }
-}
 
 impl Sub for &Position {
     type Output = Position;
@@ -156,14 +117,6 @@ impl Div<f32> for Position {
     }
 }
 
-impl Div<Length> for Position {
-    type Output = PositionUnit;
-
-    fn div(self, other: Length) -> Self::Output {
-        PositionUnit(self.0 / other.0)
-    }
-}
-
 impl Mul<&Res<'_, ViewScale>> for Position {
     type Output = Self;
 
@@ -181,25 +134,11 @@ impl From<Position> for Vec3 {
 #[derive(Clone, Component)]
 struct Velocity(Vec3);
 
-impl Velocity {
-    fn cross(&self, angular_momentum: AngularMomentum) -> Velocity {
-        Velocity(self.0.cross(angular_momentum.0))
-    }
-}
-
 impl Sub for &Velocity {
     type Output = Velocity;
 
     fn sub(self, other: Self) -> Self::Output {
         Velocity(self.0 - other.0)
-    }
-}
-
-impl Div<GravitationalParam> for Velocity {
-    type Output = EccentricityRightPart;
-
-    fn div(self, rhs: GravitationalParam) -> Self::Output {
-        EccentricityRightPart(self.0 / rhs.0)
     }
 }
 
@@ -244,25 +183,6 @@ impl Div for &Mass {
 
     fn div(self, other: Self) -> Self::Output {
         self.0 / other.0
-    }
-}
-
-#[derive(Clone, Component, Default)]
-struct BariCenter(Position);
-
-// impl Mul<ViewScale> for BariCenter {
-//     type Output = Self;
-
-//     fn mul(self, scale: ViewScale) -> Self::Output {
-//         Self(self.0 * scale)
-//     }
-// }
-
-impl Mul<&Res<'_, ViewScale>> for BariCenter {
-    type Output = Self;
-
-    fn mul(self, scale: &Res<'_, ViewScale>) -> Self::Output {
-        Self(self.0 * scale)
     }
 }
 
@@ -723,10 +643,6 @@ fn add_sun<'w, 's>(mut commands: Commands<'w, 's>, view_scale: &ViewScale) -> Co
 #[derive(Component)]
 struct Orbit;
 
-// fn draw_baricenters(mut commands: Commands) {
-//     commands
-// }
-
 fn set_baricenters(
     mut commands: Commands,
     view_scale: Res<ViewScale>,
@@ -749,27 +665,27 @@ fn set_baricenters(
 
         let position_vector = planet_position - &baricenter;
         let velocity_vector = planet_velocity - sun_velocity;
-        let distance = position_vector.length();
+        let distance = position_vector.0.length();
         let velocity_squared = velocity_vector.0.length_squared();
 
         let semi_major_axis_length =
-            SUN_SGP * distance.0 / (2.0 * SUN_SGP - distance.0 * velocity_squared);
+            SUN_SGP * distance / (2.0 * SUN_SGP - distance * velocity_squared);
 
-        let h = position_vector.cross(&velocity_vector); // specific angular momentum
+        let h = position_vector.0.cross(velocity_vector.0); // specific angular momentum
 
         let eccentricity_vector =
-            position_vector / distance - (velocity_vector.cross(h) / GravitationalParam::default());
+            position_vector.0 / distance - (velocity_vector.0.cross(h) / SUN_SGP);
 
         let semi_minor_axis_length =
-            semi_major_axis_length * (1.0 - eccentricity_vector.0.length_squared()).sqrt();
+            semi_major_axis_length * (1.0 - eccentricity_vector.length_squared()).sqrt();
 
-        let empty_focus = 2.0 * semi_major_axis_length * eccentricity_vector.0;
+        let empty_focus = 2.0 * semi_major_axis_length * eccentricity_vector;
 
         let center = (empty_focus - baricenter.0) / 2.0;
 
         let ellipsis_angle = ZERO_ANGLE
             .truncate()
-            .angle_between(eccentricity_vector.0.truncate());
+            .angle_between(eccentricity_vector.truncate());
 
         let mut transform = Transform::from_translation(center * view_scale.0);
         transform.rotate(Quat::from_rotation_z(ellipsis_angle));
